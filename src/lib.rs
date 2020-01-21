@@ -1,4 +1,4 @@
-//! A multitasking module that supports the fork-join model. Implemented on top of specs ECS.
+//! A multitasking module that supports the fork-join model. Implemented on top of SPECS ECS.
 //!
 //! Here we expound on the technical details of this module's implementation. For basic usage, see
 //! the tests.
@@ -63,7 +63,7 @@
 //!   - `TaskManagerSystem`
 //!   - `TaskRunnerSystem` for every `T: TaskRunner` used
 //!
-//! This module can be dangerous when used improperly due to the dynamic nature of specs. Potential
+//! This module can be dangerous when used improperly due to the dynamic nature of SPECS. Potential
 //! bugs not handled by this module:
 //!   - leaked orphan entities
 //!   - graph cycles

@@ -1,7 +1,7 @@
 use crate::{TaskComponent, TaskProgress};
 
 use log::debug;
-use specs::prelude::*;
+use specs::{prelude::*, storage::StorageEntry};
 use std::{error, fmt};
 
 pub fn insert<T: Component>(storage: &mut WriteStorage<T>, entity: Entity, data: T) {
@@ -13,7 +13,7 @@ pub fn delete(entities: &Entities, entity: Entity) {
 }
 
 /// This error means the entity provided to one of the APIs did not have the expected components.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UnexpectedEntity {
     ExpectedTaskEntity(Entity),
     ExpectedForkEntity(Entity),
@@ -29,6 +29,29 @@ impl fmt::Display for UnexpectedEntity {
 }
 
 impl error::Error for UnexpectedEntity {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        None
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AlreadyJoined {
+    pub parent: Entity,
+    pub already_child: Entity,
+    pub new_child: Entity,
+}
+
+impl fmt::Display for AlreadyJoined {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Tried to join {:?} --> {:?}, but the SingleEdge {:?} --> {:?} already exists",
+            self.parent, self.already_child, self.parent, self.new_child,
+        )
+    }
+}
+
+impl error::Error for AlreadyJoined {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         None
     }
@@ -121,8 +144,21 @@ impl TaskManager<'_> {
     }
 
     /// Creates a `SingleEdge` from `parent` to `child`. Creates a fork-join if `parent` is a fork.
-    pub fn join(&mut self, parent: Entity, child: Entity) {
-        insert(&mut self.single_edges, parent, SingleEdge { child });
+    pub fn join(&mut self, parent: Entity, child: Entity) -> Result<(), AlreadyJoined> {
+        let entry = self.single_edges.entry(parent).unwrap();
+
+        match entry {
+            StorageEntry::Occupied(e) => Err(AlreadyJoined {
+                parent,
+                already_child: e.get().child,
+                new_child: child,
+            }),
+            StorageEntry::Vacant(e) => {
+                e.insert(SingleEdge { child });
+
+                Ok(())
+            }
+        }
     }
 
     /// Mark `entity` as final. This will make all of `entity`'s descendents visible to the

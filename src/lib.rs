@@ -74,7 +74,8 @@ mod task_manager;
 mod task_runner;
 
 pub use task_manager::{
-    FinalTag, MultiEdge, SingleEdge, TaskManager, TaskManagerSystem, UnexpectedEntity,
+    AlreadyJoined, FinalTag, MultiEdge, SingleEdge, TaskManager, TaskManagerSystem,
+    UnexpectedEntity,
 };
 pub use task_runner::TaskRunnerSystem;
 
@@ -294,8 +295,8 @@ mod tests {
         );
 
         world.exec(|mut task_man: TaskManager| {
-            task_man.join(task3, task2);
-            task_man.join(task2, task1);
+            task_man.join(task3, task2).unwrap();
+            task_man.join(task2, task1).unwrap();
             task_man.finalize(task3, true);
         });
 
@@ -347,10 +348,10 @@ mod tests {
         );
 
         world.exec(|mut task_man: TaskManager| {
-            task_man.join(fork, initial_task);
+            task_man.join(fork, initial_task).unwrap();
             task_man.add_prong(fork, prong1_task).unwrap();
             task_man.add_prong(fork, prong2_task).unwrap();
-            task_man.join(join_task, fork);
+            task_man.join(join_task, fork).unwrap();
             task_man.finalize(join_task, true);
         });
 
@@ -372,5 +373,52 @@ mod tests {
         assert_eq!(world.entities().is_alive(prong1_task), false);
         assert_eq!(world.entities().is_alive(prong2_task), false);
         assert_eq!(world.entities().is_alive(join_task), false);
+    }
+
+    #[test]
+    fn test_cant_add_prong_to_task() {
+        let (mut world, _) = set_up();
+
+        let task = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::Finalize(true),
+        );
+        let fork = make_fork(&mut world);
+
+        world.exec(|mut task_man: TaskManager| {
+            assert_eq!(
+                task_man.add_prong(task, fork),
+                Err(UnexpectedEntity::ExpectedForkEntity(task)),
+            );
+        });
+    }
+
+    #[test]
+    fn test_already_joined_error() {
+        let (mut world, _) = set_up();
+
+        let task1 = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::Finalize(true),
+        );
+        let task2 = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::Finalize(true),
+        );
+
+        world.exec(|mut task_man: TaskManager| {
+            assert!(task_man.join(task1, task2).is_ok());
+            assert_eq!(
+                task_man.join(task1, task2),
+                Err(AlreadyJoined {
+                    parent: task1,
+                    already_child: task2,
+                    new_child: task2,
+                }),
+            );
+        });
     }
 }

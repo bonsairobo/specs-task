@@ -34,6 +34,8 @@ impl error::Error for UnexpectedEntity {
     }
 }
 
+/// This error means that you tried to `join` an entity that was already `joined` (has a
+/// `SingleEdge`).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AlreadyJoined {
     pub parent: Entity,

@@ -1,0 +1,42 @@
+use crate::{TaskComponent, TaskProgress};
+
+use specs::prelude::*;
+use std::marker::PhantomData;
+
+/// The counterpart to an implementation `TaskComponent`. Runs tasks until completion.
+///
+/// See the tests for usage.
+pub struct TaskRunnerSystem<T> {
+    marker: PhantomData<T>,
+}
+
+impl<T> Default for TaskRunnerSystem<T> {
+    fn default() -> Self {
+        TaskRunnerSystem {
+            marker: PhantomData,
+        }
+    }
+}
+
+impl<'a, T> System<'a> for TaskRunnerSystem<T>
+where
+    T: TaskComponent<'a>,
+{
+    // Note that we can only achieve task parallelism if `T::Data` does not have mutable overlap
+    // with other `TaskComponent::Data`.
+    type SystemData = (ReadStorage<'a, TaskProgress>, WriteStorage<'a, T>, T::Data);
+
+    fn run(&mut self, (progress, mut tasks, mut task_data): Self::SystemData) {
+        for (in_progress, task) in (&progress, &mut tasks).join() {
+            if !in_progress.is_unblocked {
+                continue;
+            }
+            let is_complete = task.run(&mut task_data);
+            if is_complete {
+                // This should cause the `TaskManagerSystem` to remove the `TaskProgress` from this
+                // entity, so we won't see it again.
+                in_progress.complete();
+            }
+        }
+    }
+}

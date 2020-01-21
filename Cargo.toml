@@ -1,0 +1,13 @@
+[package]
+name = "specs-task"
+version = "0.1.0"
+authors = ["Duncan Fairbanks <fduncan@umich.edu>"]
+edition = "2018"
+
+description = "A multitasking module that supports the fork-join model. Implemented on top of specs ECS."
+license = "MIT"
+repository = "https://github.com/bonsairobo/specs-task.git"
+
+[dependencies]
+log = "0.4.8"
+specs = { version = "0.15.1", default-features = false, features = ["shred-derive", "specs-derive"] }

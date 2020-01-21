@@ -1,3 +1,3 @@
 Crate: https://crates.io/crates/specs-task/
 
-Docs: `cargo doc`
+Docs: https://docs.rs/specs-task/0.1.0/specs_task/

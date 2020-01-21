@@ -82,8 +82,8 @@ pub use task_runner::TaskRunnerSystem;
 use specs::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// An ephemeral component that needs access to `SystemData` to run some task. Will be run until
-/// `is_complete` by the `TaskRunnerSystem<T>`.
+/// An ephemeral component that needs access to `SystemData` to run some task. Will be run by the
+/// `TaskRunnerSystem<T>` until `run` returns `true`.
 ///
 /// Note: `TaskComponent::Data` isn't allowed to contain `Storage<TaskComponent>`, since the
 /// `TaskRunnerSystem` already uses that resource and borrows it mutably while calling

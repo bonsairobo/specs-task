@@ -213,6 +213,10 @@ mod tests {
             .exec(|(entities, mut task_man): (Entities, TaskManager)| task_man.make_fork(&entities))
     }
 
+    fn entity_is_complete(world: &mut World, entity: Entity) -> bool {
+        world.exec(|task_man: TaskManager| task_man.entity_is_complete(entity))
+    }
+
     #[test]
     fn single_task_not_run_until_finalized() {
         let (mut world, mut dispatcher) = set_up();
@@ -241,6 +245,7 @@ mod tests {
         // If there was a bug that deleted our entity, this would be necessary to see it.
         world.maintain();
 
+        assert!(entity_is_complete(&mut world, task));
         assert_eq!(
             world.read_storage::<AlreadyComplete>().get(task),
             Some(&AlreadyComplete { was_run: true }),
@@ -264,6 +269,7 @@ mod tests {
         // This needs to be done for the entity deletion to be visible.
         world.maintain();
 
+        assert!(entity_is_complete(&mut world, task));
         assert_eq!(world.entities().is_alive(task), false);
     }
 
@@ -295,10 +301,13 @@ mod tests {
 
         dispatcher.dispatch(&world);
         dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, task1));
         assert_eq!(*world.fetch::<usize>(), 1);
         dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, task2));
         assert_eq!(*world.fetch::<usize>(), 2);
         dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, task3));
         assert_eq!(*world.fetch::<usize>(), 3);
 
         world.maintain();
@@ -347,11 +356,15 @@ mod tests {
 
         dispatcher.dispatch(&world);
         dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, initial_task));
         assert_eq!(*world.fetch::<usize>(), 1);
         dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, prong1_task));
+        assert!(entity_is_complete(&mut world, prong2_task));
         let cur_value = *world.fetch::<usize>();
         assert!(cur_value == 2 || cur_value == 3);
         dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, join_task));
         assert_eq!(*world.fetch::<usize>(), 4);
 
         world.maintain();

@@ -1,4 +1,4 @@
-//! A multitasking module that supports the fork-join model. Implemented on top of SPECS ECS.
+//! Fork-join multitasking for SPECS ECS
 //!
 //! Here we expound on the technical details of this module's implementation. For basic usage, see
 //! the tests.

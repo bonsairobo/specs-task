@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Duncan Fairbanks <fduncan@umich.edu>"]
 edition = "2018"
 
-description = "A multitasking module that supports the fork-join model. Implemented on top of SPECS ECS."
+description = "Fork-join multitasking for SPECS ECS"
 license = "MIT"
 repository = "https://github.com/bonsairobo/specs-task.git"
 

@@ -96,7 +96,7 @@ pub trait TaskComponent<'a>: Component {
 }
 
 // As long as an entity has this component, it will be considered by the `TaskRunnerSystem`.
-/// WARNING: only public because `TaskManager` is public. DO NOT USE.
+#[doc(hidden)]
 #[derive(Default)]
 pub struct TaskProgress {
     is_complete: AtomicBool,

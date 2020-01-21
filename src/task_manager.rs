@@ -57,7 +57,7 @@ impl error::Error for AlreadyJoined {
     }
 }
 
-/// WARNING: only public because `TaskManager` is public. DO NOT USE.
+#[doc(hidden)]
 #[derive(Clone)]
 pub struct SingleEdge {
     child: Entity,
@@ -67,7 +67,7 @@ impl Component for SingleEdge {
     type Storage = VecStorage<Self>;
 }
 
-/// WARNING: only public because `TaskManager` is public. DO NOT USE.
+#[doc(hidden)]
 #[derive(Clone, Default)]
 pub struct MultiEdge {
     children: Vec<Entity>,
@@ -83,7 +83,7 @@ impl Component for MultiEdge {
     type Storage = VecStorage<Self>;
 }
 
-/// WARNING: only public because `TaskManager` is public. DO NOT USE.
+#[doc(hidden)]
 #[derive(Clone, Copy, Default)]
 pub struct FinalTag {
     delete_on_completion: bool,

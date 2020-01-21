@@ -231,6 +231,7 @@ impl TaskManager<'_> {
         delete(entities, entity);
     }
 
+    /// Returns `true` iff `entity` is complete.
     fn maintain_task_and_descendents(&mut self, entity: Entity) -> bool {
         let (is_unblocked, is_complete) = if let Some(progress) = self.progress.get(entity) {
             (progress.is_unblocked, progress.is_complete())
@@ -272,6 +273,7 @@ impl TaskManager<'_> {
         false
     }
 
+    /// Returns `true` iff `entity` is complete.
     fn maintain_fork_and_descendents(
         &mut self,
         entity: Entity,
@@ -293,6 +295,7 @@ impl TaskManager<'_> {
         single_child_complete && multi_children_complete
     }
 
+    /// Returns `true` iff `entity` is complete.
     fn maintain_entity_and_descendents(&mut self, entity: Entity) -> bool {
         // Only fork entities can have `MultiEdge`s, and they always do.
         if let Some(MultiEdge { children }) = self.multi_edges.get(entity).cloned() {

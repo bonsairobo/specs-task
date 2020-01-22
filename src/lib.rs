@@ -65,18 +65,20 @@
 //!               t1 <--- FB <---|
 //!                        |
 //!               ty <-----|
+//!               tz <-----|
 //!
 //!       As time orderings:
 //!
-//!           t0   < { t1, tx, ty } < t2
-//!           t1   < ty             < t2
+//!           t0   < { t1, tx, ty, tz } < t2
+//!           t1   < { ty, tz }
 //!
 //!       Induced graph:
 //!
 //!           t0 <------- tx <------- t2
 //!            ^                      |
-//!            |                      |
-//!           t1 <------- ty <---------          "#;
+//!            |      /------ ty -----|
+//!            |     v                |
+//!            ----- t1 <---- tz <-----          "#;
 //! ```
 //!
 //! Every user of this module should use it via the `TaskManager`. It will enforce certain
@@ -429,6 +431,11 @@ mod tests {
             AlreadyComplete::default(),
             MakeSingleTask::DontFinalize,
         );
+        let tz = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::DontFinalize,
+        );
         let t2 = make_single_task(
             &mut world,
             AlreadyComplete::default(),
@@ -441,6 +448,7 @@ mod tests {
             task_man.join(forka, t0).unwrap();
 
             task_man.add_prong(forkb, ty).unwrap();
+            task_man.add_prong(forkb, tz).unwrap();
             task_man.join(forkb, t1).unwrap();
 
             task_man.join(t2, forka).unwrap();
@@ -456,6 +464,7 @@ mod tests {
         assert!(entity_is_complete(&mut world, tx));
         dispatcher.dispatch(&world);
         assert!(entity_is_complete(&mut world, ty));
+        assert!(entity_is_complete(&mut world, tz));
         dispatcher.dispatch(&world);
         assert!(entity_is_complete(&mut world, t2));
 

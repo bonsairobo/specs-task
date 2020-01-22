@@ -311,9 +311,9 @@ mod tests {
         assert_eq!(*world.fetch::<usize>(), 3);
 
         world.maintain();
-        assert_eq!(world.entities().is_alive(task1), false);
-        assert_eq!(world.entities().is_alive(task2), false);
-        assert_eq!(world.entities().is_alive(task3), false);
+        for entity in [task1, task2, task3].iter() {
+            assert_eq!(world.entities().is_alive(*entity), false);
+        }
     }
 
     #[test]
@@ -368,10 +368,93 @@ mod tests {
         assert_eq!(*world.fetch::<usize>(), 4);
 
         world.maintain();
-        assert_eq!(world.entities().is_alive(initial_task), false);
-        assert_eq!(world.entities().is_alive(prong1_task), false);
-        assert_eq!(world.entities().is_alive(prong2_task), false);
-        assert_eq!(world.entities().is_alive(join_task), false);
+        for entity in [initial_task, prong1_task, prong2_task, join_task, fork].iter() {
+            assert_eq!(world.entities().is_alive(*entity), false);
+        }
+    }
+
+    #[test]
+    fn fork_b_prong_of_fork_a() {
+        let (mut world, mut dispatcher) = set_up();
+
+        //    With fork entities:
+        //
+        //      t2 ---> FA ----------------> t0
+        //               |
+        //               |---> tx
+        //               |---> FB ---> t1
+        //                      |
+        //                      |----> ty
+        //
+        //    As orderings:
+        //
+        //      t0   < { t1, tx, ty } < t2
+        //      t1   < ty             < t2
+        //
+        //    Induced graph:
+        //
+        //      t2 -------------------> t0
+        //       | \                 /  ^
+        //       |  -----> tx -------   |
+        //       |                      |
+        //       |-------> ty --------> t1
+
+        let forka = make_fork(&mut world);
+        let forkb = make_fork(&mut world);
+        let t0 = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::DontFinalize,
+        );
+        let t1 = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::DontFinalize,
+        );
+        let tx = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::DontFinalize,
+        );
+        let ty = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::DontFinalize,
+        );
+        let t2 = make_single_task(
+            &mut world,
+            AlreadyComplete::default(),
+            MakeSingleTask::DontFinalize,
+        );
+
+        world.exec(|mut task_man: TaskManager| {
+            task_man.add_prong(forka, tx).unwrap();
+            task_man.add_prong(forka, forkb).unwrap();
+            task_man.join(forka, t0).unwrap();
+
+            task_man.add_prong(forkb, ty).unwrap();
+            task_man.join(forkb, t1).unwrap();
+
+            task_man.join(t2, forka).unwrap();
+
+            task_man.finalize(t2, true);
+        });
+
+        dispatcher.dispatch(&world);
+        dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, t0));
+        dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, t1));
+        assert!(entity_is_complete(&mut world, tx));
+        dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, ty));
+        dispatcher.dispatch(&world);
+        assert!(entity_is_complete(&mut world, t2));
+
+        world.maintain();
+        for entity in [t0, t1, tx, ty, t2, forka, forkb].iter() {
+            assert_eq!(world.entities().is_alive(*entity), false);
+        }
     }
 
     #[test]

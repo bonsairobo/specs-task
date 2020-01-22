@@ -281,7 +281,7 @@ impl TaskManager<'_> {
         entity: Entity,
         multi_edge_children: &[Entity],
     ) -> bool {
-        // We make sure that the SingleEdge child completes before any of the MultiEdge children
+        // We make sure that the SingleEdge child completes before any of the MultiEdge descendents
         // can start.
         let mut single_child_complete = true;
         if let Some(SingleEdge { child }) = self.single_edges.get(entity).cloned() {

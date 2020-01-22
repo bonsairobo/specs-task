@@ -469,7 +469,7 @@ mod tests {
         assert!(entity_is_complete(&mut world, t2));
 
         world.maintain();
-        for entity in [t0, t1, tx, ty, t2, forka, forkb].iter() {
+        for entity in [t0, t1, tx, ty, tz, t2, forka, forkb].iter() {
             assert_eq!(world.entities().is_alive(*entity), false);
         }
     }

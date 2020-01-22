@@ -63,12 +63,11 @@
 //!   - `TaskManagerSystem`
 //!   - `TaskRunnerSystem` for every `T: TaskRunner` used
 //!
-//! This module can be dangerous when used improperly due to the dynamic nature of SPECS. Potential
-//! bugs not handled by this module:
+//! Potential bugs this module won't detect:
 //!   - leaked orphan entities
 //!   - graph cycles
-//!   - DO NOT manually touch the storages for task module components! Always go through the
-//!     `TaskManager`.
+//!   - users manually tampering with the `TaskProgress`, `SingleEdge`, `MultiEdge`, or `FinalTag`
+//!     components; these should only be used inside this module
 
 mod task_manager;
 mod task_runner;

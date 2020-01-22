@@ -20,38 +20,65 @@
 //! `SingleEdge` concept does not actually make the model capable of representing any semantically
 //! new graphs. The reason is efficiency.
 //!
-//! If you want to implement a fork join like this:
+//! If you want to implement a fork join like this (note: time is going left to right but the
+//! directed edges are going right to left):
 //!
 //!```
-//! r#"     ---> t1.1 ---
-//!       /               \
-//!     t2 ----> t1.2 -----> t0
-//!       \               /
-//!         ---> t1.3 ---       "#;
+//! r#"       ----- t1.1 <---   ----- t2.1 <---
+//!          /               \ /               \
+//!      t0 <------ t1.2 <----<------ t2.2 <---- t3
+//!          \               / \               /
+//!           ----- t1.3 <---   ----- t2.3 <---      "#;
 //!```
 //!
-//! You would actually do this by calling `TaskManager::make_fork` to create a "fork" entity called
-//! `F` that doesn't have a `TaskComponent`, but it has a `SingleEdge` from `t2` to `t0`, and a
-//! `MultiEdge` from `t2` to `{ t1.1, t1.2, t1.3 }`. Note that the children on the `MultiEdge` are
-//! called "prongs" of the fork.
+//! You would actually do this by calling `TaskManager::make_fork` to create two "fork" entities
+//! `F1` and `F2` that don't have `TaskComponent`s, but they can have both a `SingleEdge` and a
+//! `MultiEdge`. Note that the children on the `MultiEdge` are called "prongs" of the fork.
 //!
 //!```
-//! r#"  t2 --> F --> t0
-//!             |
-//!             | --> t1.1
-//!             | --> t1.2
-//!             | --> t1.3  "#;
+//! r#"      single          single          single
+//!      t0 <-------- F1 <-------------- F2 <-------- t3
+//!                   |                  |
+//!          t1.1 <---|          t2.1 <--|
+//!          t1.2 <---| multi    t2.2 <--| multi
+//!          t1.3 <---|          t2.3 <--|            "#;
 //!```
 //!
 //! The semantics would be such that this graph is equivalent to the one above. Before any of the
-//! tasks connected to `F` by the `MultiEdge` could run, the task connected by the `SingleEdge`
-//! (`t0`) would have to be complete. `t2` could only run once all of the children of `F` had
-//! completed.
+//! tasks connected to `F2` by the `MultiEdge` could run, the tasks connected by the `SingleEdge`
+//! (`{ t0, t1.1, t1.2, t1.3 }`) would have to be complete. `t3` could only run once all of the
+//! descendents of `F2` had completed.
 //!
 //! The advantages of this scheme are:
-//!   - a traversal of the graph starting from `t2` does not visit the same node twice
+//!   - a traversal of the graph starting from `t3` does not visit the same node twice
 //!   - it is a bit easier to create fork-join graphs with larger numbers of concurrent tasks
 //!   - there are fewer edges for the most common use cases
+//!
+//! Here's another example with "nested forks" to test your understanding:
+//!
+//! ```
+//! r#"   With fork entities:
+//!
+//!           t0 <-------------- FA <----- t2
+//!                              |
+//!                       tx <---|
+//!               t1 <--- FB <---|
+//!                        |
+//!               ty <-----|
+//!
+//!       As time orderings:
+//!
+//!           t0   < { t1, tx, ty } < t2
+//!           t1   < ty             < t2
+//!
+//!       Induced graph:
+//!
+//!           t0 <------------------- t2
+//!            ^ \                  / |
+//!            |  ------- tx <------  |
+//!            |                      |
+//!            t1 ------- ty <---------          "#;
+//! ```
 //!
 //! Every user of this module should use it via the `TaskManager`. It will enforce certain
 //! invariants about the kinds of entities that can be constructed. For example, any entity with a
@@ -373,31 +400,11 @@ mod tests {
         }
     }
 
+    // This test case is derived from the "nested forks" example in the doc comment at the top of
+    // this file.
     #[test]
-    fn fork_b_prong_of_fork_a() {
+    fn join_fork_with_nested_fork() {
         let (mut world, mut dispatcher) = set_up();
-
-        //    With fork entities:
-        //
-        //      t2 ---> FA ----------------> t0
-        //               |
-        //               |---> tx
-        //               |---> FB ---> t1
-        //                      |
-        //                      |----> ty
-        //
-        //    As orderings:
-        //
-        //      t0   < { t1, tx, ty } < t2
-        //      t1   < ty             < t2
-        //
-        //    Induced graph:
-        //
-        //      t2 -------------------> t0
-        //       | \                 /  ^
-        //       |  -----> tx -------   |
-        //       |                      |
-        //       |-------> ty --------> t1
 
         let forka = make_fork(&mut world);
         let forkb = make_fork(&mut world);

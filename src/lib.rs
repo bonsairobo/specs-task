@@ -73,11 +73,10 @@
 //!
 //!       Induced graph:
 //!
-//!           t0 <------------------- t2
-//!            ^ \                  / |
-//!            |  ------- tx <------  |
+//!           t0 <------- tx <------- t2
+//!            ^                      |
 //!            |                      |
-//!            t1 ------- ty <---------          "#;
+//!           t1 <------- ty <---------          "#;
 //! ```
 //!
 //! Every user of this module should use it via the `TaskManager`. It will enforce certain
@@ -93,8 +92,10 @@
 //! Potential bugs this module won't detect:
 //!   - leaked orphan entities
 //!   - graph cycles
+//!   - finalizing an entity that has children
 //!   - users manually tampering with the `TaskProgress`, `SingleEdge`, `MultiEdge`, or `FinalTag`
 //!     components; these should only be used inside this module
+//!
 
 mod task_manager;
 mod task_runner;

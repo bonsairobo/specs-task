@@ -27,15 +27,15 @@ where
     type SystemData = (ReadStorage<'a, TaskProgress>, WriteStorage<'a, T>, T::Data);
 
     fn run(&mut self, (progress, mut tasks, mut task_data): Self::SystemData) {
-        for (in_progress, task) in (&progress, &mut tasks).join() {
-            if !in_progress.is_unblocked {
+        for (task_progress, task) in (&progress, &mut tasks).join() {
+            if !task_progress.is_unblocked {
                 continue;
             }
             let is_complete = task.run(&mut task_data);
             if is_complete {
                 // This should cause the `TaskManagerSystem` to remove the `TaskProgress` from this
                 // entity, so we won't see it again.
-                in_progress.complete();
+                task_progress.complete();
             }
         }
     }

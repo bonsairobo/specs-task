@@ -1,6 +1,6 @@
 [package]
 name = "specs-task"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Duncan Fairbanks <fduncan@umich.edu>"]
 edition = "2018"
 

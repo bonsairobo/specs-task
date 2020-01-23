@@ -227,8 +227,8 @@ mod tests {
         option: MakeSingleTask,
     ) -> Entity {
         world.exec(
-            |(entities, mut task_man, mut tasks): (Entities, TaskManager, WriteStorage<T>)| {
-                let task = task_man.make_task(task, &entities, &mut tasks);
+            |(mut task_man, mut tasks): (TaskManager, WriteStorage<T>)| {
+                let task = task_man.make_task(task, &mut tasks);
                 if let MakeSingleTask::Finalize(delete_on_completion) = option {
                     task_man.finalize(task, delete_on_completion);
                 }
@@ -239,8 +239,7 @@ mod tests {
     }
 
     fn make_fork(world: &mut World) -> Entity {
-        world
-            .exec(|(entities, mut task_man): (Entities, TaskManager)| task_man.make_fork(&entities))
+        world.exec(|mut task_man: TaskManager| task_man.make_fork())
     }
 
     fn entity_is_complete(world: &mut World, entity: Entity) -> bool {

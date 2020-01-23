@@ -98,6 +98,7 @@ impl Component for FinalTag {
 /// The main object for users of this module. Manages all non-background task operations.
 #[derive(SystemData)]
 pub struct TaskManager<'a> {
+    entities: Entities<'a>,
     progress: WriteStorage<'a, TaskProgress>,
     single_edges: WriteStorage<'a, SingleEdge>,
     multi_edges: WriteStorage<'a, MultiEdge>,
@@ -110,10 +111,9 @@ impl TaskManager<'_> {
     pub fn make_task<'a, T: TaskComponent<'a>>(
         &mut self,
         task: T,
-        entities: &Entities,
         tasks: &mut WriteStorage<T>,
     ) -> Entity {
-        let entity = entities.create();
+        let entity = self.entities.create();
         insert(&mut self.progress, entity, TaskProgress::default());
         insert(tasks, entity, task);
         debug!("Created task {:?}", entity);
@@ -122,8 +122,8 @@ impl TaskManager<'_> {
     }
 
     /// Create a new fork entity with no children.
-    pub fn make_fork(&mut self, entities: &Entities) -> Entity {
-        let entity = entities.create();
+    pub fn make_fork(&mut self) -> Entity {
+        let entity = self.entities.create();
         insert(&mut self.multi_edges, entity, MultiEdge::default());
         debug!("Created fork {:?}", entity);
 
@@ -215,22 +215,22 @@ impl TaskManager<'_> {
     }
 
     /// Deletes only the descendent entities of `entity`, but leaves `entity` alive.
-    pub fn delete_descendents(&self, entity: Entity, entities: &Entities) {
+    pub fn delete_descendents(&self, entity: Entity) {
         if let Some(MultiEdge { children }) = self.multi_edges.get(entity) {
             for child in children.iter() {
-                self.delete_entity_and_descendents(*child, entities);
+                self.delete_entity_and_descendents(*child);
             }
         }
         if let Some(SingleEdge { child }) = self.single_edges.get(entity) {
-            self.delete_entity_and_descendents(*child, entities);
+            self.delete_entity_and_descendents(*child);
         }
     }
 
     /// Deletes `entity` and all of its descendents.
-    pub fn delete_entity_and_descendents(&self, entity: Entity, entities: &Entities) {
-        self.delete_descendents(entity, entities);
+    pub fn delete_entity_and_descendents(&self, entity: Entity) {
+        self.delete_descendents(entity);
         debug!("Deleting {:?}", entity);
-        delete(entities, entity);
+        delete(&self.entities, entity);
     }
 
     /// Returns `true` iff `entity` is complete.
@@ -317,10 +317,10 @@ impl TaskManager<'_> {
 pub struct TaskManagerSystem;
 
 impl<'a> System<'a> for TaskManagerSystem {
-    type SystemData = (Entities<'a>, TaskManager<'a>);
+    type SystemData = TaskManager<'a>;
 
-    fn run(&mut self, (entities, mut task_man): Self::SystemData) {
-        let final_ents: Vec<(Entity, FinalTag)> = (&entities, &task_man.finalized)
+    fn run(&mut self, mut task_man: Self::SystemData) {
+        let final_ents: Vec<(Entity, FinalTag)> = (&task_man.entities, &task_man.finalized)
             .join()
             .map(|(e, f)| (e, *f))
             .collect();
@@ -334,7 +334,7 @@ impl<'a> System<'a> for TaskManagerSystem {
             let final_complete = task_man.maintain_entity_and_descendents(entity);
             if final_complete {
                 if delete_on_completion {
-                    task_man.delete_entity_and_descendents(entity, &entities);
+                    task_man.delete_entity_and_descendents(entity);
                 } else {
                     debug!("Removing FinalTag from {:?}", entity);
                     task_man.finalized.remove(entity);

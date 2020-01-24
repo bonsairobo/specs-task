@@ -95,7 +95,7 @@ impl Component for FinalTag {
     type Storage = VecStorage<Self>;
 }
 
-/// The main object for users of this module. Manages all non-background task operations.
+/// The main object for users of this module. Used for creating and connecting tasks.
 #[derive(SystemData)]
 pub struct TaskManager<'a> {
     entities: Entities<'a>,

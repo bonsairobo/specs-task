@@ -4,14 +4,6 @@ use log::debug;
 use specs::{prelude::*, storage::StorageEntry};
 use std::{error, fmt};
 
-pub fn insert<T: Component>(storage: &mut WriteStorage<T>, entity: Entity, data: T) {
-    storage.insert(entity, data).unwrap();
-}
-
-pub fn delete(entities: &Entities, entity: Entity) {
-    entities.delete(entity).unwrap();
-}
-
 /// This error means the entity provided to one of the APIs did not have the expected components.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum UnexpectedEntity {
@@ -114,8 +106,8 @@ impl TaskManager<'_> {
         tasks: &mut WriteStorage<T>,
     ) -> Entity {
         let entity = self.entities.create();
-        insert(&mut self.progress, entity, TaskProgress::default());
-        insert(tasks, entity, task);
+        self.progress.insert(entity, TaskProgress::default()).unwrap();
+        tasks.insert(entity, task).unwrap();
         debug!("Created task {:?}", entity);
 
         entity
@@ -124,7 +116,7 @@ impl TaskManager<'_> {
     /// Create a new fork entity with no children.
     pub fn make_fork(&mut self) -> Entity {
         let entity = self.entities.create();
-        insert(&mut self.multi_edges, entity, MultiEdge::default());
+        self.multi_edges.insert(entity, MultiEdge::default()).unwrap();
         debug!("Created fork {:?}", entity);
 
         entity
@@ -169,13 +161,12 @@ impl TaskManager<'_> {
     /// entire graph is complete). Otherwise, you need to clean up the entities your self by calling
     /// `delete_entity_and_descendents`. God help you if you leak an orphaned entity.
     pub fn finalize(&mut self, entity: Entity, delete_on_completion: bool) {
-        insert(
-            &mut self.finalized,
+        self.finalized.insert(
             entity,
             FinalTag {
                 delete_on_completion,
             },
-        );
+        ).unwrap();
     }
 
     /// Returns true iff the task was seen as complete on the last run of the `TaskManagerSystem`.
@@ -230,7 +221,7 @@ impl TaskManager<'_> {
     pub fn delete_entity_and_descendents(&self, entity: Entity) {
         self.delete_descendents(entity);
         debug!("Deleting {:?}", entity);
-        delete(&self.entities, entity);
+        self.entities.delete(entity).unwrap();
     }
 
     /// Returns `true` iff `entity` is complete.

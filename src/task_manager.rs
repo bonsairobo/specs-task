@@ -219,6 +219,12 @@ impl TaskManager<'_> {
 
     /// Deletes `entity` and all of its descendents.
     pub fn delete_entity_and_descendents(&self, entity: Entity) {
+        // Support async deletion. If a child is deleted, we assume all of its descendants were also
+        // deleted.
+        if !self.entities.is_alive(entity) {
+            return;
+        }
+
         self.delete_descendents(entity);
         debug!("Deleting {:?}", entity);
         self.entities.delete(entity).unwrap();

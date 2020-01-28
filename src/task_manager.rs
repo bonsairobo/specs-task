@@ -231,6 +231,11 @@ impl TaskManager<'_> {
         }
     }
 
+    /// Returns the number of tasks that haven't yet completed.
+    pub fn count_tasks_in_progress(&mut self) -> usize {
+        (&self.progress).join().count()
+    }
+
     /// Deletes only the descendent entities of `entity`, but leaves `entity` alive.
     pub fn delete_descendents(&self, entity: Entity) {
         if let Some(MultiEdge { children }) = self.multi_edges.get(entity) {

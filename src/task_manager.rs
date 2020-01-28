@@ -113,6 +113,19 @@ impl TaskManager<'_> {
         entity
     }
 
+    /// Same as `make_task`, but also finalizes the task.
+    pub fn make_final_task<'a, T: TaskComponent<'a>>(
+        &mut self,
+        task: T,
+        tasks: &mut WriteStorage<T>,
+        delete_on_completion: bool,
+    ) -> Entity {
+        let task_entity = self.make_task(task, tasks);
+        self.finalize(task_entity, delete_on_completion);
+
+        task_entity
+    }
+
     /// Create a new fork entity with no children.
     pub fn make_fork(&mut self) -> Entity {
         let entity = self.entities.create();

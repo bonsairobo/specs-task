@@ -77,6 +77,7 @@ impl Component for MultiEdge {
     type Storage = VecStorage<Self>;
 }
 
+/// What to do to a final task and its descendents when it they complete.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum OnCompletion {
     None,

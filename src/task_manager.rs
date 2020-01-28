@@ -77,10 +77,22 @@ impl Component for MultiEdge {
     type Storage = VecStorage<Self>;
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum OnCompletion {
+    None,
+    Delete,
+}
+
+impl Default for OnCompletion {
+    fn default() -> Self {
+        OnCompletion::None
+    }
+}
+
 #[doc(hidden)]
 #[derive(Clone, Copy, Default)]
 pub struct FinalTag {
-    delete_on_completion: bool,
+    on_completion: OnCompletion,
 }
 
 impl Component for FinalTag {
@@ -118,10 +130,10 @@ impl TaskManager<'_> {
         &mut self,
         task: T,
         tasks: &mut WriteStorage<T>,
-        delete_on_completion: bool,
+        on_completion: OnCompletion,
     ) -> Entity {
         let task_entity = self.make_task(task, tasks);
-        self.finalize(task_entity, delete_on_completion);
+        self.finalize(task_entity, on_completion);
 
         task_entity
     }
@@ -169,15 +181,15 @@ impl TaskManager<'_> {
     }
 
     /// Mark `entity` as final. This will make all of `entity`'s descendents visible to the
-    /// `TaskManagerSystem`, allowing them to make progress. If `delete_on_completion` is true, then
+    /// `TaskManagerSystem`, allowing them to make progress. If `OnCompletion::Delete`, then
     /// `entity` and all of its descendents will be deleted when `entity` is complete (and hence the
     /// entire graph is complete). Otherwise, you need to clean up the entities your self by calling
     /// `delete_entity_and_descendents`. God help you if you leak an orphaned entity.
-    pub fn finalize(&mut self, entity: Entity, delete_on_completion: bool) {
+    pub fn finalize(&mut self, entity: Entity, on_completion: OnCompletion) {
         self.finalized.insert(
             entity,
             FinalTag {
-                delete_on_completion,
+                on_completion,
             },
         ).unwrap();
     }
@@ -322,7 +334,7 @@ impl TaskManager<'_> {
 ///
 /// Also does some garbage collection:
 ///   - removes `TaskProgress` components from completed tasks
-///   - deletes task graphs with `delete_on_completion`
+///   - deletes task graphs with `OnCompletion::Delete`
 ///   - removes `FinalTag` components from completed entities
 pub struct TaskManagerSystem;
 
@@ -337,17 +349,18 @@ impl<'a> System<'a> for TaskManagerSystem {
         for (
             entity,
             FinalTag {
-                delete_on_completion,
+                on_completion,
             },
         ) in final_ents.into_iter()
         {
             let final_complete = task_man.maintain_entity_and_descendents(entity);
             if final_complete {
-                if delete_on_completion {
-                    task_man.delete_entity_and_descendents(entity);
-                } else {
-                    debug!("Removing FinalTag from {:?}", entity);
-                    task_man.finalized.remove(entity);
+                match on_completion {
+                    OnCompletion::Delete => { task_man.delete_entity_and_descendents(entity); }
+                    OnCompletion::None => {
+                        debug!("Removing FinalTag from {:?}", entity);
+                        task_man.finalized.remove(entity);
+                    }
                 }
             }
         }

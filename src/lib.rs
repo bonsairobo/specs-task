@@ -103,7 +103,7 @@ mod task_manager;
 mod task_runner;
 
 pub use task_manager::{
-    AlreadyJoined, FinalTag, MultiEdge, SingleEdge, TaskManager, TaskManagerSystem,
+    AlreadyJoined, FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskManager, TaskManagerSystem,
     UnexpectedEntity,
 };
 pub use task_runner::TaskRunnerSystem;
@@ -217,7 +217,7 @@ mod tests {
     }
 
     enum MakeSingleTask {
-        Finalize(bool),
+        Finalize(OnCompletion),
         DontFinalize,
     }
 
@@ -229,8 +229,8 @@ mod tests {
         world.exec(
             |(mut task_man, mut tasks): (TaskManager, WriteStorage<T>)| {
                 let task = task_man.make_task(task, &mut tasks);
-                if let MakeSingleTask::Finalize(delete_on_completion) = option {
-                    task_man.finalize(task, delete_on_completion);
+                if let MakeSingleTask::Finalize(on_completion) = option {
+                    task_man.finalize(task, on_completion);
                 }
 
                 task
@@ -265,7 +265,7 @@ mod tests {
             Some(&AlreadyComplete { was_run: false })
         );
 
-        world.exec(|mut task_man: TaskManager| task_man.finalize(task, false));
+        world.exec(|mut task_man: TaskManager| task_man.finalize(task, OnCompletion::None));
 
         // Unblock the task.
         dispatcher.dispatch(&world);
@@ -288,7 +288,7 @@ mod tests {
         let task = make_single_task(
             &mut world,
             AlreadyComplete::default(),
-            MakeSingleTask::Finalize(true),
+            MakeSingleTask::Finalize(OnCompletion::Delete),
         );
 
         // Unblock the task.
@@ -325,7 +325,7 @@ mod tests {
         world.exec(|mut task_man: TaskManager| {
             task_man.join(task3, task2).unwrap();
             task_man.join(task2, task1).unwrap();
-            task_man.finalize(task3, true);
+            task_man.finalize(task3, OnCompletion::Delete);
         });
 
         dispatcher.dispatch(&world);
@@ -380,7 +380,7 @@ mod tests {
             task_man.add_prong(fork, prong1_task).unwrap();
             task_man.add_prong(fork, prong2_task).unwrap();
             task_man.join(join_task, fork).unwrap();
-            task_man.finalize(join_task, true);
+            task_man.finalize(join_task, OnCompletion::Delete);
         });
 
         dispatcher.dispatch(&world);
@@ -452,7 +452,7 @@ mod tests {
 
             task_man.join(t2, forka).unwrap();
 
-            task_man.finalize(t2, true);
+            task_man.finalize(t2, OnCompletion::Delete);
         });
 
         dispatcher.dispatch(&world);
@@ -480,7 +480,7 @@ mod tests {
         let task = make_single_task(
             &mut world,
             AlreadyComplete::default(),
-            MakeSingleTask::Finalize(true),
+            MakeSingleTask::Finalize(OnCompletion::Delete),
         );
         let fork = make_fork(&mut world);
 
@@ -499,12 +499,12 @@ mod tests {
         let task1 = make_single_task(
             &mut world,
             AlreadyComplete::default(),
-            MakeSingleTask::Finalize(true),
+            MakeSingleTask::Finalize(OnCompletion::Delete),
         );
         let task2 = make_single_task(
             &mut world,
             AlreadyComplete::default(),
-            MakeSingleTask::Finalize(true),
+            MakeSingleTask::Finalize(OnCompletion::Delete),
         );
 
         world.exec(|mut task_man: TaskManager| {

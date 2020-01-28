@@ -232,7 +232,7 @@ impl TaskManager<'_> {
     }
 
     /// Returns the number of tasks that haven't yet completed.
-    pub fn count_tasks_in_progress(&mut self) -> usize {
+    pub fn count_tasks_in_progress(&self) -> usize {
         (&self.progress).join().count()
     }
 

@@ -82,6 +82,7 @@ impl Component for MultiEdge {
 pub enum OnCompletion {
     None,
     Delete,
+    DeleteDescendents,
 }
 
 impl Default for OnCompletion {
@@ -111,6 +112,20 @@ pub struct TaskManager<'a> {
 }
 
 impl TaskManager<'_> {
+    /// Like `make_task`, but use `entity` for tracking the task components. This can make it easier
+    /// to manage tasks coupled with a specific entity (rather than storing a separate task entity
+    /// in a component).
+    pub fn make_task_with_entity<'a, T: TaskComponent<'a>>(
+        &mut self,
+        entity: Entity,
+        task: T,
+        tasks: &mut WriteStorage<T>,
+    ) {
+        self.progress.insert(entity, TaskProgress::default()).unwrap();
+        tasks.insert(entity, task).unwrap();
+        debug!("Created task {:?}", entity);
+    }
+
     /// Create a new task entity with the given `TaskComponent`. The task will not make progress
     /// until it is either finalized or the descendent of a finalized entity.
     pub fn make_task<'a, T: TaskComponent<'a>>(
@@ -119,9 +134,21 @@ impl TaskManager<'_> {
         tasks: &mut WriteStorage<T>,
     ) -> Entity {
         let entity = self.entities.create();
-        self.progress.insert(entity, TaskProgress::default()).unwrap();
-        tasks.insert(entity, task).unwrap();
-        debug!("Created task {:?}", entity);
+        self.make_task_with_entity(entity, task, tasks);
+
+        entity
+    }
+
+    /// Same as `make_task_with_entity`, but also finalizes the task.
+    pub fn make_final_task_with_entity<'a, T: TaskComponent<'a>>(
+        &mut self,
+        entity: Entity,
+        task: T,
+        tasks: &mut WriteStorage<T>,
+        on_completion: OnCompletion,
+    ) -> Entity {
+        self.make_task_with_entity(entity, task, tasks);
+        self.finalize(entity, on_completion);
 
         entity
     }
@@ -363,6 +390,7 @@ impl<'a> System<'a> for TaskManagerSystem {
             if final_complete {
                 match on_completion {
                     OnCompletion::Delete => { task_man.delete_entity_and_descendents(entity); }
+                    OnCompletion::DeleteDescendents => { task_man.delete_descendents(entity); }
                     OnCompletion::None => {
                         debug!("Removing FinalTag from {:?}", entity);
                         task_man.finalized.remove(entity);

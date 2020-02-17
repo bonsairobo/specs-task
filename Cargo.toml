@@ -10,4 +10,4 @@ repository = "https://github.com/bonsairobo/specs-task.git"
 
 [dependencies]
 log = "0.4.8"
-specs = { version = "0.15.1", default-features = false, features = ["shred-derive", "specs-derive"] }
+specs = { version = "0.16.0", default-features = false, features = ["shred-derive", "specs-derive"] }

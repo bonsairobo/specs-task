@@ -116,7 +116,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 ///
 /// Note: `TaskComponent::Data` isn't allowed to contain `Storage<TaskComponent>`, since the
 /// `TaskRunnerSystem` already uses that resource and borrows it mutably while calling
-/// `TaskComponent::run`.
+/// `TaskComponent::run`. If you really need access to `Storage<TaskComponent>`, you can
+/// safely use the `LazyUpdate` resource for that.
 pub trait TaskComponent<'a>: Component {
     type Data: SystemData<'a>;
 

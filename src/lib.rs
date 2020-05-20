@@ -10,7 +10,7 @@
 //! ```compile_fail
 //! fn make_static_task_graph(lazy: &LazyUpdate) {
 //!     // Any component that implements TaskComponent can be spawned.
-//!     let task_graph = seq!(
+//!     let task_graph: TaskGraph = seq!(
 //!         @TaskFoo("hello"),
 //!         fork!(
 //!             @TaskBar { value: 1 },
@@ -29,7 +29,7 @@
 //!         middle = fork!(middle, @TaskBar { value: i });
 //!     }
 //!     let last = task!(@TaskZing("goodbye"));
-//!     let task_graph = seq!(first, middle, last);
+//!     let task_graph: TaskGraph = seq!(first, middle, last);
 //!     task_graph.assemble(lazy, OnCompletion::Delete);
 //! }
 //! ```
@@ -203,7 +203,7 @@ mod tests {
 
     use specs::prelude::*;
 
-    #[derive(Debug, Default, Eq, PartialEq)]
+    #[derive(Clone, Debug, Default, Eq, PartialEq)]
     struct AlreadyComplete {
         was_run: bool,
     }
@@ -222,6 +222,7 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
     struct WriteValue {
         value: usize,
     }
@@ -285,13 +286,6 @@ mod tests {
                 task
             },
         );
-        world.maintain();
-
-        entity
-    }
-
-    fn make_fork_with_world(world: &mut World) -> Entity {
-        let entity = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| make_fork(&lazy, &entities));
         world.maintain();
 
         entity
@@ -362,44 +356,27 @@ mod tests {
     fn joined_tasks_run_in_order_and_deleted_on_completion() {
         let (mut world, mut dispatcher) = set_up();
 
-        let task1 = make_single_task(
-            &mut world,
-            WriteValue { value: 1 },
-            MakeSingleTask::DontFinalize,
-        );
-        let task2 = make_single_task(
-            &mut world,
-            WriteValue { value: 2 },
-            MakeSingleTask::DontFinalize,
-        );
-        let task3 = make_single_task(
-            &mut world,
-            WriteValue { value: 3 },
-            MakeSingleTask::DontFinalize,
-        );
+        let root = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| {
+            let task_graph: TaskGraph = seq!(
+                @WriteValue { value: 1 },
+                @WriteValue { value: 2 },
+                @WriteValue { value: 3 }
+            );
 
-        world.exec(|lazy: Read<LazyUpdate>| {
-            join(&lazy, task3, task2);
-            join(&lazy, task2, task1);
-            finalize(&lazy, task3, OnCompletion::Delete);
+            task_graph.assemble(OnCompletion::Delete, &lazy, &entities)
         });
         world.maintain();
 
         dispatcher.dispatch(&world);
         dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, task1));
         assert_eq!(*world.fetch::<usize>(), 1);
         dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, task2));
         assert_eq!(*world.fetch::<usize>(), 2);
         dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, task3));
         assert_eq!(*world.fetch::<usize>(), 3);
 
         world.maintain();
-        for entity in [task1, task2, task3].iter() {
-            assert_eq!(world.entities().is_alive(*entity), false);
-        }
+        assert_eq!(world.entities().is_alive(root), false);
     }
 
     #[test]
@@ -410,125 +387,30 @@ mod tests {
         //       /               \
         //     t2 ----> t1.2 -----> t0
 
-        let fork = make_fork_with_world(&mut world);
-        let initial_task = make_single_task(
-            &mut world,
-            WriteValue { value: 1 },
-            MakeSingleTask::DontFinalize,
-        );
-        let prong1_task = make_single_task(
-            &mut world,
-            WriteValue { value: 2 },
-            MakeSingleTask::DontFinalize,
-        );
-        let prong2_task = make_single_task(
-            &mut world,
-            WriteValue { value: 3 },
-            MakeSingleTask::DontFinalize,
-        );
-        let join_task = make_single_task(
-            &mut world,
-            WriteValue { value: 4 },
-            MakeSingleTask::DontFinalize,
-        );
+        let root = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| {
+            let task_graph: TaskGraph = seq!(
+                @WriteValue { value: 1 },
+                fork!(
+                    @WriteValue { value: 2 },
+                    @WriteValue { value: 3 }
+                ),
+                @WriteValue { value: 4 }
+            );
 
-        world.exec(|lazy: Read<LazyUpdate>| {
-            join(&lazy, fork, initial_task);
-            add_prong(&lazy, fork, prong1_task);
-            add_prong(&lazy, fork, prong2_task);
-            join(&lazy, join_task, fork);
-            finalize(&lazy, join_task, OnCompletion::Delete);
+            task_graph.assemble(OnCompletion::Delete, &lazy, &entities)
         });
         world.maintain();
 
         dispatcher.dispatch(&world);
         dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, initial_task));
         assert_eq!(*world.fetch::<usize>(), 1);
         dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, prong1_task));
-        assert!(entity_is_complete(&mut world, prong2_task));
         let cur_value = *world.fetch::<usize>();
         assert!(cur_value == 2 || cur_value == 3);
         dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, join_task));
         assert_eq!(*world.fetch::<usize>(), 4);
 
         world.maintain();
-        for entity in [initial_task, prong1_task, prong2_task, join_task, fork].iter() {
-            assert_eq!(world.entities().is_alive(*entity), false);
-        }
-    }
-
-    // This test case is derived from the "nested forks" example in the doc comment at the top of
-    // this file.
-    #[test]
-    fn join_fork_with_nested_fork() {
-        let (mut world, mut dispatcher) = set_up();
-
-        let forka = make_fork_with_world(&mut world);
-        let forkb = make_fork_with_world(&mut world);
-        let t0 = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::DontFinalize,
-        );
-        let t1 = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::DontFinalize,
-        );
-        let tx = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::DontFinalize,
-        );
-        let ty = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::DontFinalize,
-        );
-        let tz = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::DontFinalize,
-        );
-        let t2 = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::DontFinalize,
-        );
-
-        world.exec(|lazy: Read<LazyUpdate>| {
-            add_prong(&lazy, forka, tx);
-            add_prong(&lazy, forka, forkb);
-            join(&lazy, forka, t0);
-
-            add_prong(&lazy, forkb, ty);
-            add_prong(&lazy, forkb, tz);
-            join(&lazy, forkb, t1);
-
-            join(&lazy, t2, forka);
-
-            finalize(&lazy, t2, OnCompletion::Delete);
-        });
-        world.maintain();
-
-        dispatcher.dispatch(&world);
-        dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, t0));
-        dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, t1));
-        assert!(entity_is_complete(&mut world, tx));
-        dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, ty));
-        assert!(entity_is_complete(&mut world, tz));
-        dispatcher.dispatch(&world);
-        assert!(entity_is_complete(&mut world, t2));
-
-        world.maintain();
-        for entity in [t0, t1, tx, ty, tz, t2, forka, forkb].iter() {
-            assert_eq!(world.entities().is_alive(*entity), false);
-        }
+        assert_eq!(world.entities().is_alive(root), false);
     }
 }

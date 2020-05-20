@@ -77,6 +77,18 @@ impl TaskManager<'_> {
         self.entities.delete(entity).unwrap();
     }
 
+    /// Deletes the entity and descendents if they are all complete. Returns true iff the entity and
+    /// all descendents are complete.
+    pub fn delete_if_complete(&self, entity: Entity) -> bool {
+        if self.entity_is_complete(entity) {
+            self.delete_entity_and_descendents(entity);
+
+            true
+        } else {
+            false
+        }
+    }
+
     /// Returns `true` iff `entity` is complete.
     fn maintain_task_and_descendents(&mut self, entity: Entity) -> bool {
         let (is_unblocked, is_complete) = if let Some(progress) = self.progress.get(entity) {

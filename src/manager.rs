@@ -3,7 +3,7 @@ use crate::components::{FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskProgr
 use log::debug;
 use specs::prelude::*;
 
-/// The main object for users of this module. Used for creating and connecting tasks.
+/// Used for managing task entities after they've been created by the `TaskMaker`.
 #[derive(SystemData)]
 pub struct TaskManager<'a> {
     entities: Entities<'a>,

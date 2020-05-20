@@ -8,7 +8,7 @@ pub trait TaskFactory {
     fn create_task(&self, task_maker: &TaskMaker) -> Entity;
 }
 
-impl<'a, T: 'static + Clone + TaskComponent<'a>> TaskFactory for T {
+impl<'a, T: 'static + Clone + TaskComponent<'a> + Send + Sync> TaskFactory for T {
     fn create_task(&self, task_maker: &TaskMaker) -> Entity {
         task_maker.make_task(self.clone())
     }

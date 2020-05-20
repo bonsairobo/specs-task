@@ -102,7 +102,9 @@ impl<'a> TaskMaker<'a> {
     /// Like `make_task`, but use `entity` for tracking the task components. This can make it easier
     /// to manage tasks coupled with a specific entity (rather than storing a separate task entity
     /// in a component).
-    pub fn make_task_with_entity<'b, T: TaskComponent<'b>>(&self, entity: Entity, task: T) {
+    pub fn make_task_with_entity<'b, T: TaskComponent<'b> + Send + Sync>(
+        &self, entity: Entity, task: T
+    ) {
         LazyBuilder {
             entity,
             lazy: &self.lazy,
@@ -115,7 +117,7 @@ impl<'a> TaskMaker<'a> {
 
     /// Create a new task entity with the given `TaskComponent`. The task will not make progress
     /// until it is either finalized or the descendent of a finalized entity.
-    pub fn make_task<'b, T: TaskComponent<'b>>(&self, task: T) -> Entity {
+    pub fn make_task<'b, T: TaskComponent<'b> + Send + Sync>(&self, task: T) -> Entity {
         let entity = self
             .lazy
             .create_entity(&self.entities)
@@ -128,7 +130,7 @@ impl<'a> TaskMaker<'a> {
     }
 
     /// Same as `make_task_with_entity`, but also finalizes the task.
-    pub fn make_final_task_with_entity<'b, T: TaskComponent<'b>>(
+    pub fn make_final_task_with_entity<'b, T: TaskComponent<'b> + Send + Sync>(
         &self,
         entity: Entity,
         task: T,
@@ -141,7 +143,7 @@ impl<'a> TaskMaker<'a> {
     }
 
     /// Same as `make_task`, but also finalizes the task.
-    pub fn make_final_task<'b, T: TaskComponent<'b>>(
+    pub fn make_final_task<'b, T: TaskComponent<'b> + Send + Sync>(
         &self,
         task: T,
         on_completion: OnCompletion,

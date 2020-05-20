@@ -160,8 +160,7 @@
 //!
 //! Every user of this module should create task graphs via the `empty_graph!`, `seq!`, `fork!`, and
 //! `task!` macros, which make it easy to construct task graphs correctly. Once a graph is ready,
-//! call `assemble` on it to mark the task entities for execution (by finalizing the root of the
-//! graph).
+//! call `assemble` on it to mark the task entities for execution.
 //!
 //! These systems must be scheduled for tasks to make progress:
 //!   - `TaskManagerSystem`

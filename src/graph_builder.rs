@@ -56,11 +56,7 @@ impl<T> Cons<T> {
 pub type TaskGraph = Cons<Box<dyn TaskFactory + Send + Sync>>;
 
 impl Cons<Box<dyn TaskFactory + Send + Sync>> {
-    fn _assemble(
-        self,
-        fork: Option<Entity>,
-        task_maker: &TaskMaker,
-    ) -> (Entity, Entity) {
+    fn _assemble(self, fork: Option<Entity>, task_maker: &TaskMaker) -> (Entity, Entity) {
         match self {
             Cons::Seq(head, tail) => {
                 let (head_first_entity, head_last_entity) = head._assemble(None, task_maker);
@@ -102,11 +98,7 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
 
     /// Mark the root of the `TaskGraph` as final, effectively unblocking the first tasks in this
     /// graph to be run. Panics if `self` contains no tasks.
-    pub fn assemble(
-        self,
-        on_completion: OnCompletion,
-        task_maker: &TaskMaker,
-    ) -> Entity {
+    pub fn assemble(self, on_completion: OnCompletion, task_maker: &TaskMaker) -> Entity {
         let s = self.remove_nil();
         let (_first_entity, last_entity) = s._assemble(None, task_maker);
         task_maker.finalize(last_entity, on_completion);

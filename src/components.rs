@@ -102,17 +102,21 @@ impl<'a> TaskMaker<'a> {
     /// to manage tasks coupled with a specific entity (rather than storing a separate task entity
     /// in a component).
     pub fn make_task_with_entity<'b, T: TaskComponent<'b>>(&self, entity: Entity, task: T) {
-        LazyBuilder { entity, lazy: &self.lazy }
-            .with(task)
-            .with(TaskProgress::default())
-            .build();
+        LazyBuilder {
+            entity,
+            lazy: &self.lazy,
+        }
+        .with(task)
+        .with(TaskProgress::default())
+        .build();
         log::debug!("Created task {:?}", entity);
     }
 
     /// Create a new task entity with the given `TaskComponent`. The task will not make progress
     /// until it is either finalized or the descendent of a finalized entity.
     pub fn make_task<'b, T: TaskComponent<'b>>(&self, task: T) -> Entity {
-        let entity = self.lazy
+        let entity = self
+            .lazy
             .create_entity(&self.entities)
             .with(task)
             .with(TaskProgress::default())
@@ -149,7 +153,8 @@ impl<'a> TaskMaker<'a> {
 
     /// Create a new fork entity with no children.
     pub fn make_fork(&self) -> Entity {
-        let entity = self.lazy
+        let entity = self
+            .lazy
             .create_entity(&self.entities)
             .with(MultiEdge::default())
             .build();

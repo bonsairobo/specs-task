@@ -28,13 +28,11 @@ where
 
     fn run(&mut self, (progress, mut tasks, mut task_data): Self::SystemData) {
         for (task_progress, task) in (&progress, &mut tasks).join() {
-            if !task_progress.is_unblocked {
+            if !task_progress.is_unblocked || task_progress.is_complete() {
                 continue;
             }
             let is_complete = task.run(&mut task_data);
             if is_complete {
-                // This should cause the `TaskManagerSystem` to remove the `TaskProgress` from this
-                // entity, so we won't see it again.
                 task_progress.complete();
             }
         }

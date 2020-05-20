@@ -14,19 +14,19 @@ pub struct TaskManager<'a> {
 
 impl TaskManager<'_> {
     /// Returns true iff the task was seen as complete on the last run of the `TaskManagerSystem`.
-    ///
-    /// WARNING: assumes that this entity was at one point a task, and it can't tell otherwise.
     pub fn task_is_complete(&self, entity: Entity) -> bool {
-        !self.progress.contains(entity)
+        if let Some(progress) = self.progress.get(entity) {
+            progress.is_complete()
+        } else {
+            // Task entity may not have a TaskProgress component yet if it's constructed lazily.
+            false
+        }
     }
 
     /// Returns true iff all of `entity`'s children are complete.
-    fn fork_is_complete(&self, entity: Entity, multi_children: &[Entity]) -> bool {
-        if let Some(SingleEdge { child }) = self.single_edges.get(entity) {
-            if !self.entity_is_complete(*child) {
-                return false;
-            }
-        }
+    fn fork_is_complete(&self, multi_children: &[Entity]) -> bool {
+        // We know that a fork's SingleEdge child is complete if any of the MultiEdge children are
+        // complete.
         for child in multi_children.iter() {
             if !self.entity_is_complete(*child) {
                 return false;
@@ -37,13 +37,11 @@ impl TaskManager<'_> {
     }
 
     /// Tells you whether a fork or a task entity is complete.
-    ///
-    /// WARNING: assumes that this entity was at one point a task or a fork, and it can't tell
-    /// otherwise.
     pub fn entity_is_complete(&self, entity: Entity) -> bool {
-        // Only fork entities can have `MultiEdge`s, and they always do.
+        // Only fork entities can have `MultiEdge`s. If the entity is being created lazily, we won't
+        // know if it's a fork or task, but we won't consider it complete regardless.
         if let Some(MultiEdge { children }) = self.multi_edges.get(entity) {
-            self.fork_is_complete(entity, &children)
+            self.fork_is_complete(&children)
         } else {
             self.task_is_complete(entity)
         }
@@ -93,8 +91,6 @@ impl TaskManager<'_> {
                 "Noticed task {:?} is complete, removing TaskProgress",
                 entity
             );
-            // Task will no longer be considered by the `TaskRunnerSystem`.
-            self.progress.remove(entity);
             return true;
         }
 

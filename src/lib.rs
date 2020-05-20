@@ -267,7 +267,7 @@ mod tests {
         DontFinalize,
     }
 
-    fn make_single_task<'a, T: TaskComponent<'a>>(
+    fn make_single_task<'a, T: TaskComponent<'a> + Send + Sync>(
         world: &mut World,
         task: T,
         option: MakeSingleTask,
@@ -342,7 +342,6 @@ mod tests {
         // This needs to be done for the entity deletion to be visible.
         world.maintain();
 
-        assert!(entity_is_complete(&mut world, task));
         assert_eq!(world.entities().is_alive(task), false);
     }
 

@@ -153,7 +153,6 @@ impl TaskManager<'_> {
 /// Traverses all descendents of all finalized entities and unblocks them if possible.
 ///
 /// Also does some garbage collection:
-///   - removes `TaskProgress` components from completed tasks
 ///   - deletes task graphs with `OnCompletion::Delete`
 ///   - removes `FinalTag` components from completed entities
 pub struct TaskManagerSystem;

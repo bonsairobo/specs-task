@@ -189,9 +189,9 @@ mod manager;
 mod runner;
 
 pub use components::{
-    add_prong, join, finalize, make_final_task, make_final_task_with_entity, make_fork, make_task,
+    add_prong, finalize, join, make_final_task, make_final_task_with_entity, make_fork, make_task,
     make_task_with_entity, FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent,
-    TaskProgress
+    TaskProgress,
 };
 pub use graph_builder::{Cons, TaskFactory, TaskGraph};
 pub use manager::{TaskManager, TaskManagerSystem};
@@ -276,16 +276,14 @@ mod tests {
         task: T,
         option: MakeSingleTask,
     ) -> Entity {
-        let entity = world.exec(
-            |(lazy, entities): (Read<LazyUpdate>, Entities)| {
-                let task = make_task(&lazy, &entities, task);
-                if let MakeSingleTask::Finalize(on_completion) = option {
-                    finalize(&lazy, task, on_completion);
-                }
+        let entity = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| {
+            let task = make_task(&lazy, &entities, task);
+            if let MakeSingleTask::Finalize(on_completion) = option {
+                finalize(&lazy, task, on_completion);
+            }
 
-                task
-            },
-        );
+            task
+        });
         world.maintain();
 
         entity

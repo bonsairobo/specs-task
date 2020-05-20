@@ -160,14 +160,12 @@ pub fn make_fork(lazy: &LazyUpdate, entities: &Entities) -> Entity {
 pub fn add_prong(lazy: &LazyUpdate, fork_entity: Entity, prong: Entity) {
     lazy.exec_mut(move |world| {
         let mut multi_edges = world.write_component::<MultiEdge>();
-        let multi_edge = multi_edges
-            .get_mut(fork_entity)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Tried to add prong {:?} to non-fork entity {:?}",
-                    prong, fork_entity
-                )
-            });
+        let multi_edge = multi_edges.get_mut(fork_entity).unwrap_or_else(|| {
+            panic!(
+                "Tried to add prong {:?} to non-fork entity {:?}",
+                prong, fork_entity
+            )
+        });
         multi_edge.add_child(prong);
     });
 }
@@ -195,6 +193,8 @@ pub fn join(lazy: &LazyUpdate, parent: Entity, child: Entity) {
 pub fn finalize(lazy: &LazyUpdate, entity: Entity, on_completion: OnCompletion) {
     lazy.exec_mut(move |world| {
         let mut finalized = world.write_component::<FinalTag>();
-        finalized.insert(entity, FinalTag { on_completion }).unwrap();
+        finalized
+            .insert(entity, FinalTag { on_completion })
+            .unwrap();
     });
 }

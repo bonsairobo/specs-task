@@ -8,7 +8,7 @@
 //! ### Making task graphs
 //!
 //! ```compile_fail
-//! fn make_static_task_graph(lazy: &LazyUpdate) {
+//! fn make_static_task_graph(task_maker: &TaskMaker) {
 //!     // Any component that implements TaskComponent can be spawned.
 //!     let task_graph: TaskGraph = seq!(
 //!         @TaskFoo("hello"),
@@ -19,10 +19,10 @@
 //!         ),
 //!         @TaskZing("goodbye")
 //!     );
-//!     task_graph.assemble(lazy, OnCompletion::Delete);
+//!     task_graph.assemble(task_maker, OnCompletion::Delete);
 //! }
 //!
-//! fn make_dynamic_task_graph(lazy: &LazyUpdate) {
+//! fn make_dynamic_task_graph(task_maker: &TaskMaker) {
 //!     let first = task!(@TaskFoo("hello"));
 //!     let mut middle = empty_graph!();
 //!     for i in 0..10 {
@@ -30,7 +30,7 @@
 //!     }
 //!     let last = task!(@TaskZing("goodbye"));
 //!     let task_graph: TaskGraph = seq!(first, middle, last);
-//!     task_graph.assemble(lazy, OnCompletion::Delete);
+//!     task_graph.assemble(task_maker, OnCompletion::Delete);
 //! }
 //! ```
 //!

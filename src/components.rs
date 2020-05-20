@@ -91,6 +91,7 @@ impl Component for FinalTag {
     type Storage = VecStorage<Self>;
 }
 
+/// A `SystemData` used for creating and assembling task graphs.
 #[derive(SystemData)]
 pub struct TaskMaker<'a> {
     lazy: Read<'a, LazyUpdate>,

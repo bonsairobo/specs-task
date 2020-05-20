@@ -1,4 +1,78 @@
-//! Fork-join multitasking for SPECS ECS
+//! # Fork-join multitasking for SPECS ECS
+//!
+//! Instead of hand-rolling state machines to sequence the effects of various ECS systems, spawn
+//! tasks as entities and declare explicit temporal dependencies between them.
+//!
+//! ## Code Examples
+//!
+//! ### Making task graphs
+//!
+//! ```compile_fail
+//! fn make_static_task_graph(lazy: &LazyUpdate) {
+//!     // Any component that implements TaskComponent can be spawned.
+//!     let task_graph = seq!(
+//!         @TaskFoo("hello"),
+//!         fork!(
+//!             @TaskBar { value: 1 },
+//!             @TaskBar { value: 2 },
+//!             @TaskBar { value: 3 }
+//!         ),
+//!         @TaskZing("goodbye")
+//!     );
+//!     task_graph.assemble(lazy, OnCompletion::Delete);
+//! }
+//!
+//! fn make_dynamic_task_graph(lazy: &LazyUpdate) {
+//!     let first = task!(@TaskFoo("hello"));
+//!     let mut middle = empty_graph!();
+//!     for i in 0..10 {
+//!         middle = fork!(middle, @TaskBar { value: i });
+//!     }
+//!     let last = task!(@TaskZing("goodbye"));
+//!     let task_graph = seq!(first, middle, last);
+//!     task_graph.assemble(lazy, OnCompletion::Delete);
+//! }
+//! ```
+//!
+//! ### Building a dispatcher with a `TaskRunnerSystem`
+//!
+//! ```compile_fail
+//! #[derive(Clone, Debug)]
+//! struct PushValue {
+//!     value: usize,
+//! }
+//!
+//! impl Component for PushValue {
+//!     type Storage = VecStorage<Self>;
+//! }
+//!
+//! impl<'a> TaskComponent<'a> for PushValue {
+//!     type Data = Write<'a, Vec<usize>>;
+//!
+//!     fn run(&mut self, data: &mut Self::Data) -> bool {
+//!         data.push(self.value);
+//!
+//!         true
+//!     }
+//! }
+//!
+//! fn make_dispatcher() -> Dispatcher {
+//!     DispatcherBuilder::new()
+//!         .with(
+//!             TaskRunnerSystem::<PushValue>::default(),
+//!             "push_value",
+//!             &[],
+//!         )
+//!         .with(
+//!             TaskManagerSystem,
+//!             "task_manager",
+//!             &[],
+//!         )
+//!         .build()
+//! }
+//! ```
+//!
+//! ## Data Model
 //!
 //! Here we expound on the technical details of this module's implementation. For basic usage, see
 //! the tests.
@@ -13,12 +87,13 @@
 //! In order for tasks to become unblocked, the `TaskManagerSystem` must run, whence it will
 //! traverse the graph, starting at the "final entities", and check for entities that have
 //! completed, potentially unblocking their parents. In order for a task to be run, it must be the
-//! descendent of a final entity. Entities become final by calling `TaskManager::finalize`.
+//! descendent of a final entity. Entity component tuples become final by calling `finalize` (which
+//! adds a `FinalTag` component).
 //!
 //! Edges can either come from `SingleEdge` or `MultiEdge` components, but you should not use these
-//! types directly. You might wonder why we need both. It's a fair question, because adding the
-//! `SingleEdge` concept does not actually make the model capable of representing any semantically
-//! new graphs. The reason is efficiency.
+//! types directly. You might wonder why we need both types of edges. It's a fair question, because
+//! adding the `SingleEdge` concept does not actually make the model capable of representing any
+//! semantically new graphs. The reason is efficiency.
 //!
 //! If you want to implement a fork join like this (note: time is going left to right but the
 //! directed edges are going right to left):
@@ -31,13 +106,13 @@
 //!           ----- t1.3 <---   ----- t2.3 <---      "#;
 //!```
 //!
-//! You would actually do this by calling `TaskManager::make_fork` to create two "fork" entities
-//! `F1` and `F2` that don't have `TaskComponent`s, but they can have both a `SingleEdge` and a
-//! `MultiEdge`. Note that the children on the `MultiEdge` are called "prongs" of the fork.
+//! You would actually do this by calling `make_fork` to create two "fork" entities `F1` and `F2`
+//! that don't have `TaskComponent`s, but they can have both a `SingleEdge` and a `MultiEdge`. Note
+//! that the children on the `MultiEdge` are called "prongs" of the fork.
 //!
 //!```
 //! r#"      single          single          single
-//!      t0 <-------- F1 <-------------- F2 <-------- t3
+//!     t0 <-------- F1 <-------------- F2 <-------- t3
 //!                   |                  |
 //!          t1.1 <---|          t2.1 <--|
 //!          t1.2 <---| multi    t2.2 <--| multi
@@ -81,17 +156,26 @@
 //!            ----- t1 <---- tz <-----          "#;
 //! ```
 //!
-//! Every user of this module should use it via the `TaskManager`. It will enforce certain
-//! invariants about the kinds of entities that can be constructed. For example, any entity with a
-//! `MultiEdge` component is considered a "fork entity", and it is not allowed to have a
-//! `TaskComponent` or a `TaskProgress`. Therefore, if you want a task to have multiple children, it
-//! must do so via a fork entity.
+//! ## Macro Usage
 //!
-//! These systems must be dispatched for tasks to make progress:
+//! Every user of this module should create task graphs via the `empty_graph!`, `seq!`, `fork!`, and
+//! `task!` macros, which make it easy to construct task graphs correctly. Once a graph is ready,
+//! call `assemble` on it to mark the task entities for execution (by finalizing the root of the
+//! graph).
+//!
+//! These systems must be scheduled for tasks to make progress:
 //!   - `TaskManagerSystem`
-//!   - `TaskRunnerSystem` for every `T: TaskRunner` used
+//!   - `TaskRunnerSystem`
 //!
-//! Potential bugs this module won't detect:
+//! ## Advanced Usage
+//!
+//! If you find the `TaskGraph` macros limiting, you can use the `make_task`, `join`, `make_fork`,
+//! and `add_prong` functions; these are the building blocks for creating all task graphs, including
+//! buggy ones. These functions are totally dynamic in that they deal directly with entities of
+//! various archetypes, assuming that the programmer passed in the correct archetypes for the given
+//! function.
+//!
+//! Potential bugs that won't be detected for you:
 //!   - leaked orphan entities
 //!   - graph cycles
 //!   - finalizing an entity that has children
@@ -99,61 +183,25 @@
 //!     components; these should only be used inside this module
 //!
 
-mod task_manager;
-mod task_runner;
+mod components;
+mod graph_builder;
+mod manager;
+mod runner;
 
-pub use task_manager::{
-    AlreadyJoined, FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskManager, TaskManagerSystem,
-    UnexpectedEntity,
+pub use components::{
+    add_prong, join, finalize, make_final_task, make_final_task_with_entity, make_fork, make_task,
+    make_task_with_entity, FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent,
+    TaskProgress
 };
-pub use task_runner::TaskRunnerSystem;
-
-use specs::prelude::*;
-use std::sync::atomic::{AtomicBool, Ordering};
-
-/// An ephemeral component that needs access to `SystemData` to run some task. Will be run by the
-/// `TaskRunnerSystem<T>` until `run` returns `true`.
-///
-/// Note: `TaskComponent::Data` isn't allowed to contain `Storage<TaskComponent>`, since the
-/// `TaskRunnerSystem` already uses that resource and borrows it mutably while calling
-/// `TaskComponent::run`. If you really need access to `Storage<TaskComponent>`, you can
-/// safely use the `LazyUpdate` resource for that.
-pub trait TaskComponent<'a>: Component {
-    type Data: SystemData<'a>;
-
-    /// Returns `true` iff the task is complete.
-    fn run(&mut self, data: &mut Self::Data) -> bool;
-}
-
-// As long as an entity has this component, it will be considered by the `TaskRunnerSystem`.
-#[doc(hidden)]
-#[derive(Default)]
-pub struct TaskProgress {
-    is_complete: AtomicBool,
-    is_unblocked: bool,
-}
-
-impl Component for TaskProgress {
-    type Storage = VecStorage<Self>;
-}
-
-impl TaskProgress {
-    fn is_complete(&self) -> bool {
-        self.is_complete.load(Ordering::Relaxed)
-    }
-
-    fn complete(&self) {
-        self.is_complete.store(true, Ordering::Relaxed);
-    }
-
-    fn unblock(&mut self) {
-        self.is_unblocked = true;
-    }
-}
+pub use graph_builder::{Cons, TaskFactory, TaskGraph};
+pub use manager::{TaskManager, TaskManagerSystem};
+pub use runner::TaskRunnerSystem;
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use specs::prelude::*;
 
     #[derive(Debug, Default, Eq, PartialEq)]
     struct AlreadyComplete {
@@ -227,20 +275,26 @@ mod tests {
         task: T,
         option: MakeSingleTask,
     ) -> Entity {
-        world.exec(
-            |(mut task_man, mut tasks): (TaskManager, WriteStorage<T>)| {
-                let task = task_man.make_task(task, &mut tasks);
+        let entity = world.exec(
+            |(lazy, entities): (Read<LazyUpdate>, Entities)| {
+                let task = make_task(&lazy, &entities, task);
                 if let MakeSingleTask::Finalize(on_completion) = option {
-                    task_man.finalize(task, on_completion);
+                    finalize(&lazy, task, on_completion);
                 }
 
                 task
             },
-        )
+        );
+        world.maintain();
+
+        entity
     }
 
-    fn make_fork(world: &mut World) -> Entity {
-        world.exec(|mut task_man: TaskManager| task_man.make_fork())
+    fn make_fork_with_world(world: &mut World) -> Entity {
+        let entity = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| make_fork(&lazy, &entities));
+        world.maintain();
+
+        entity
     }
 
     fn entity_is_complete(world: &mut World, entity: Entity) -> bool {
@@ -266,7 +320,8 @@ mod tests {
             Some(&AlreadyComplete { was_run: false })
         );
 
-        world.exec(|mut task_man: TaskManager| task_man.finalize(task, OnCompletion::None));
+        world.exec(|lazy: Read<LazyUpdate>| finalize(&lazy, task, OnCompletion::None));
+        world.maintain();
 
         // Unblock the task.
         dispatcher.dispatch(&world);
@@ -323,11 +378,12 @@ mod tests {
             MakeSingleTask::DontFinalize,
         );
 
-        world.exec(|mut task_man: TaskManager| {
-            task_man.join(task3, task2).unwrap();
-            task_man.join(task2, task1).unwrap();
-            task_man.finalize(task3, OnCompletion::Delete);
+        world.exec(|lazy: Read<LazyUpdate>| {
+            join(&lazy, task3, task2);
+            join(&lazy, task2, task1);
+            finalize(&lazy, task3, OnCompletion::Delete);
         });
+        world.maintain();
 
         dispatcher.dispatch(&world);
         dispatcher.dispatch(&world);
@@ -354,7 +410,7 @@ mod tests {
         //       /               \
         //     t2 ----> t1.2 -----> t0
 
-        let fork = make_fork(&mut world);
+        let fork = make_fork_with_world(&mut world);
         let initial_task = make_single_task(
             &mut world,
             WriteValue { value: 1 },
@@ -376,13 +432,14 @@ mod tests {
             MakeSingleTask::DontFinalize,
         );
 
-        world.exec(|mut task_man: TaskManager| {
-            task_man.join(fork, initial_task).unwrap();
-            task_man.add_prong(fork, prong1_task).unwrap();
-            task_man.add_prong(fork, prong2_task).unwrap();
-            task_man.join(join_task, fork).unwrap();
-            task_man.finalize(join_task, OnCompletion::Delete);
+        world.exec(|lazy: Read<LazyUpdate>| {
+            join(&lazy, fork, initial_task);
+            add_prong(&lazy, fork, prong1_task);
+            add_prong(&lazy, fork, prong2_task);
+            join(&lazy, join_task, fork);
+            finalize(&lazy, join_task, OnCompletion::Delete);
         });
+        world.maintain();
 
         dispatcher.dispatch(&world);
         dispatcher.dispatch(&world);
@@ -409,8 +466,8 @@ mod tests {
     fn join_fork_with_nested_fork() {
         let (mut world, mut dispatcher) = set_up();
 
-        let forka = make_fork(&mut world);
-        let forkb = make_fork(&mut world);
+        let forka = make_fork_with_world(&mut world);
+        let forkb = make_fork_with_world(&mut world);
         let t0 = make_single_task(
             &mut world,
             AlreadyComplete::default(),
@@ -442,19 +499,20 @@ mod tests {
             MakeSingleTask::DontFinalize,
         );
 
-        world.exec(|mut task_man: TaskManager| {
-            task_man.add_prong(forka, tx).unwrap();
-            task_man.add_prong(forka, forkb).unwrap();
-            task_man.join(forka, t0).unwrap();
+        world.exec(|lazy: Read<LazyUpdate>| {
+            add_prong(&lazy, forka, tx);
+            add_prong(&lazy, forka, forkb);
+            join(&lazy, forka, t0);
 
-            task_man.add_prong(forkb, ty).unwrap();
-            task_man.add_prong(forkb, tz).unwrap();
-            task_man.join(forkb, t1).unwrap();
+            add_prong(&lazy, forkb, ty);
+            add_prong(&lazy, forkb, tz);
+            join(&lazy, forkb, t1);
 
-            task_man.join(t2, forka).unwrap();
+            join(&lazy, t2, forka);
 
-            task_man.finalize(t2, OnCompletion::Delete);
+            finalize(&lazy, t2, OnCompletion::Delete);
         });
+        world.maintain();
 
         dispatcher.dispatch(&world);
         dispatcher.dispatch(&world);
@@ -472,52 +530,5 @@ mod tests {
         for entity in [t0, t1, tx, ty, tz, t2, forka, forkb].iter() {
             assert_eq!(world.entities().is_alive(*entity), false);
         }
-    }
-
-    #[test]
-    fn test_cant_add_prong_to_task() {
-        let (mut world, _) = set_up();
-
-        let task = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::Finalize(OnCompletion::Delete),
-        );
-        let fork = make_fork(&mut world);
-
-        world.exec(|mut task_man: TaskManager| {
-            assert_eq!(
-                task_man.add_prong(task, fork),
-                Err(UnexpectedEntity::ExpectedForkEntity(task)),
-            );
-        });
-    }
-
-    #[test]
-    fn test_already_joined_error() {
-        let (mut world, _) = set_up();
-
-        let task1 = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::Finalize(OnCompletion::Delete),
-        );
-        let task2 = make_single_task(
-            &mut world,
-            AlreadyComplete::default(),
-            MakeSingleTask::Finalize(OnCompletion::Delete),
-        );
-
-        world.exec(|mut task_man: TaskManager| {
-            assert!(task_man.join(task1, task2).is_ok());
-            assert_eq!(
-                task_man.join(task1, task2),
-                Err(AlreadyJoined {
-                    parent: task1,
-                    already_child: task2,
-                    new_child: task2,
-                }),
-            );
-        });
     }
 }

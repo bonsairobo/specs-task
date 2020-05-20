@@ -1,6 +1,73 @@
-This is a young crate, and I don't even know if anyone wants to use it yet.
-API changes are likely. But your input is welcome!
+# Fork-join multitasking for SPECS ECS
 
-Crate: https://crates.io/crates/specs-task/
+Instead of hand-rolling state machines to sequence the effects of various ECS systems, spawn
+tasks as entities and declare explicit temporal dependencies between them.
 
-Docs: https://docs.rs/specs-task/
+## Code Examples
+
+### Making task graphs
+
+```rust
+fn make_static_task_graph(task_maker: &TaskMaker) {
+    // Any component that implements TaskComponent can be spawned.
+    let task_graph: TaskGraph = seq!(
+        @TaskFoo("hello"),
+        fork!(
+            @TaskBar { value: 1 },
+            @TaskBar { value: 2 },
+            @TaskBar { value: 3 }
+        ),
+        @TaskZing("goodbye")
+    );
+    task_graph.assemble(task_maker, OnCompletion::Delete);
+}
+
+fn make_dynamic_task_graph(task_maker: &TaskMaker) {
+    let first = task!(@TaskFoo("hello"));
+    let mut middle = empty_graph!();
+    for i in 0..10 {
+        middle = fork!(middle, @TaskBar { value: i });
+    }
+    let last = task!(@TaskZing("goodbye"));
+    let task_graph: TaskGraph = seq!(first, middle, last);
+    task_graph.assemble(task_maker, OnCompletion::Delete);
+}
+```
+
+### Building a dispatcher with a `TaskRunnerSystem`
+
+```rust
+#[derive(Clone, Debug)]
+struct PushValue {
+    value: usize,
+}
+
+impl Component for PushValue {
+    type Storage = VecStorage<Self>;
+}
+
+impl<'a> TaskComponent<'a> for PushValue {
+    type Data = Write<'a, Vec<usize>>;
+
+    fn run(&mut self, data: &mut Self::Data) -> bool {
+        data.push(self.value);
+
+        true
+    }
+}
+
+fn make_dispatcher() -> Dispatcher {
+    DispatcherBuilder::new()
+        .with(
+            TaskRunnerSystem::<PushValue>::default(),
+            "push_value",
+            &[],
+        )
+        .with(
+            TaskManagerSystem,
+            "task_manager",
+            &[],
+        )
+        .build()
+}
+```

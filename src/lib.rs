@@ -169,11 +169,10 @@
 //!
 //! ## Advanced Usage
 //!
-//! If you find the `TaskGraph` macros limiting, you can use the `make_task`, `join`, `make_fork`,
-//! and `add_prong` functions; these are the building blocks for creating all task graphs, including
-//! buggy ones. These functions are totally dynamic in that they deal directly with entities of
-//! various archetypes, assuming that the programmer passed in the correct archetypes for the given
-//! function.
+//! If you find the `TaskGraph` macros limiting, you can use the `TaskMaker`; these are the building
+//! blocks for creating all task graphs, including buggy ones. These functions are totally dynamic
+//! in that they deal directly with entities of various archetypes, assuming that the programmer
+//! passed in the correct archetypes for the given function.
 //!
 //! Potential bugs that won't be detected for you:
 //!   - leaked orphan entities
@@ -189,9 +188,7 @@ mod manager;
 mod runner;
 
 pub use components::{
-    add_prong, finalize, join, make_final_task, make_final_task_with_entity, make_fork, make_task,
-    make_task_with_entity, FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent,
-    TaskProgress,
+    FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent, TaskMaker, TaskProgress,
 };
 pub use graph_builder::{Cons, TaskFactory, TaskGraph};
 pub use manager::{TaskManager, TaskManagerSystem};
@@ -276,10 +273,10 @@ mod tests {
         task: T,
         option: MakeSingleTask,
     ) -> Entity {
-        let entity = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| {
-            let task = make_task(&lazy, &entities, task);
+        let entity = world.exec(|task_maker: TaskMaker| {
+            let task = task_maker.make_task(task);
             if let MakeSingleTask::Finalize(on_completion) = option {
-                finalize(&lazy, task, on_completion);
+                task_maker.finalize(task, on_completion);
             }
 
             task
@@ -312,7 +309,7 @@ mod tests {
             Some(&AlreadyComplete { was_run: false })
         );
 
-        world.exec(|lazy: Read<LazyUpdate>| finalize(&lazy, task, OnCompletion::None));
+        world.exec(|task_maker: TaskMaker| task_maker.finalize(task, OnCompletion::None));
         world.maintain();
 
         // Unblock the task.
@@ -354,14 +351,14 @@ mod tests {
     fn joined_tasks_run_in_order_and_deleted_on_completion() {
         let (mut world, mut dispatcher) = set_up();
 
-        let root = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| {
+        let root = world.exec(|task_maker: TaskMaker| {
             let task_graph: TaskGraph = seq!(
                 @WriteValue { value: 1 },
                 @WriteValue { value: 2 },
                 @WriteValue { value: 3 }
             );
 
-            task_graph.assemble(OnCompletion::Delete, &lazy, &entities)
+            task_graph.assemble(OnCompletion::Delete, &task_maker)
         });
         world.maintain();
 
@@ -385,7 +382,7 @@ mod tests {
         //       /               \
         //     t2 ----> t1.2 -----> t0
 
-        let root = world.exec(|(lazy, entities): (Read<LazyUpdate>, Entities)| {
+        let root = world.exec(|task_maker: TaskMaker| {
             let task_graph: TaskGraph = seq!(
                 @WriteValue { value: 1 },
                 fork!(
@@ -395,7 +392,7 @@ mod tests {
                 @WriteValue { value: 4 }
             );
 
-            task_graph.assemble(OnCompletion::Delete, &lazy, &entities)
+            task_graph.assemble(OnCompletion::Delete, &task_maker)
         });
         world.maintain();
 

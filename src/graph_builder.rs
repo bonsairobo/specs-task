@@ -98,12 +98,17 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
 
     /// Mark the root of the `TaskGraph` as final, effectively unblocking the first tasks in this
     /// graph to be run. Panics if `self` contains no tasks.
-    pub fn assemble(self, on_completion: OnCompletion, task_maker: &TaskMaker) -> Entity {
+    pub fn assemble(self, on_completion: OnCompletion, task_maker: &TaskMaker) -> Option<Entity> {
         let s = self.remove_nil();
+        match s {
+            Cons::Nil => return None,
+            _ => (),
+        }
+
         let (_first_entity, last_entity) = s._assemble(None, task_maker);
         task_maker.finalize(last_entity, on_completion);
 
-        last_entity
+        Some(last_entity)
     }
 }
 
@@ -158,6 +163,7 @@ macro_rules! seq {
     ($head:expr) => ( $head );
 }
 
+#[cfg(test)]
 mod tests {
     use super::*;
 

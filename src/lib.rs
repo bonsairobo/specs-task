@@ -369,7 +369,7 @@ mod tests {
         assert_eq!(*world.fetch::<usize>(), 3);
 
         world.maintain();
-        assert_eq!(world.entities().is_alive(root), false);
+        assert_eq!(world.entities().is_alive(root.unwrap()), false);
     }
 
     #[test]
@@ -404,6 +404,6 @@ mod tests {
         assert_eq!(*world.fetch::<usize>(), 4);
 
         world.maintain();
-        assert_eq!(world.entities().is_alive(root), false);
+        assert_eq!(world.entities().is_alive(root.unwrap()), false);
     }
 }

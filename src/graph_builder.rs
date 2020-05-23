@@ -100,9 +100,8 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
     /// graph to be run. Panics if `self` contains no tasks.
     pub fn assemble(self, on_completion: OnCompletion, task_maker: &TaskMaker) -> Option<Entity> {
         let s = self.remove_nil();
-        match s {
-            Cons::Nil => return None,
-            _ => (),
+        if let Cons::Nil = s {
+            return None;
         }
 
         let (_first_entity, last_entity) = s._assemble(None, task_maker);

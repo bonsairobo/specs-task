@@ -1,58 +1,16 @@
 use crate::{
     components::{FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskProgress},
-    monitor::entity_is_complete,
+    data::TaskData,
 };
 
 use log::debug;
 use specs::prelude::*;
 
-/// Used for managing task entities after they've been created by the `TaskMaker`.
-#[derive(SystemData)]
-pub struct TaskManager<'a> {
-    entities: Entities<'a>,
-    progress: WriteStorage<'a, TaskProgress>,
-    single_edges: ReadStorage<'a, SingleEdge>,
-    multi_edges: ReadStorage<'a, MultiEdge>,
-}
+/// Used for managing task entities after they've been created by the `TaskUser`.
+#[doc(hidden)]
+pub type TaskManager<'a> = TaskData<'a, WriteStorage<'a, TaskProgress>>;
 
 impl TaskManager<'_> {
-    /// Deletes only the descendent entities of `entity`, but leaves `entity` alive.
-    pub fn delete_descendents(&self, entity: Entity) {
-        if let Some(MultiEdge { children }) = self.multi_edges.get(entity) {
-            for child in children.iter() {
-                self.delete_entity_and_descendents(*child);
-            }
-        }
-        if let Some(SingleEdge { child }) = self.single_edges.get(entity) {
-            self.delete_entity_and_descendents(*child);
-        }
-    }
-
-    /// Deletes `entity` and all of its descendents.
-    pub fn delete_entity_and_descendents(&self, entity: Entity) {
-        // Support async deletion. If a child is deleted, we assume all of its descendants were also
-        // deleted.
-        if !self.entities.is_alive(entity) {
-            return;
-        }
-
-        self.delete_descendents(entity);
-        debug!("Deleting {:?}", entity);
-        self.entities.delete(entity).unwrap();
-    }
-
-    /// Deletes the entity and descendents if they are all complete. Returns true iff the entity and
-    /// all descendents are complete.
-    pub fn delete_if_complete(&self, entity: Entity) -> bool {
-        if entity_is_complete(&self.progress, &self.multi_edges, entity) {
-            self.delete_entity_and_descendents(entity);
-
-            true
-        } else {
-            false
-        }
-    }
-
     /// Returns `true` iff `entity` is complete.
     fn maintain_task_and_descendents(&mut self, entity: Entity) -> bool {
         let (is_unblocked, is_complete) = if let Some(progress) = self.progress.get(entity) {

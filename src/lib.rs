@@ -8,7 +8,7 @@
 //! ### Making task graphs
 //!
 //! ```compile_fail
-//! fn make_static_task_graph(task_maker: &TaskMaker) {
+//! fn make_static_task_graph(user: &TaskUser) {
 //!     // Any component that implements TaskComponent can be spawned.
 //!     let task_graph: TaskGraph = seq!(
 //!         @TaskFoo("hello"),
@@ -19,18 +19,18 @@
 //!         ),
 //!         @TaskZing("goodbye")
 //!     );
-//!     task_graph.assemble(task_maker, OnCompletion::Delete);
+//!     task_graph.assemble(user, OnCompletion::Delete);
 //! }
 //!
-//! fn make_dynamic_task_graph(task_maker: &TaskMaker) {
-//!     let first = task!(@TaskFoo("hello"));
-//!     let mut middle = empty_graph!();
+//! fn make_dynamic_task_graph(user: &TaskUser) {
+//!     let first: TaskGraph = task!(@TaskFoo("hello"));
+//!     let mut middle: TaskGraph = empty_graph!();
 //!     for i in 0..10 {
 //!         middle = fork!(middle, @TaskBar { value: i });
 //!     }
-//!     let last = task!(@TaskZing("goodbye"));
+//!     let last: TaskGraph = task!(@TaskZing("goodbye"));
 //!     let task_graph: TaskGraph = seq!(first, middle, last);
-//!     task_graph.assemble(task_maker, OnCompletion::Delete);
+//!     task_graph.assemble(user, OnCompletion::Delete);
 //! }
 //! ```
 //!
@@ -111,8 +111,7 @@
 //! that the children on the `MultiEdge` are called "prongs" of the fork.
 //!
 //!```
-//! r#"      single          single          single
-//!     t0 <-------- F1 <-------------- F2 <-------- t3
+//! r#"      single          single          single t0 <-------- F1 <-------------- F2 <-------- t3
 //!                   |                  |
 //!          t1.1 <---|          t2.1 <--|
 //!          t1.2 <---| multi    t2.2 <--| multi
@@ -168,10 +167,10 @@
 //!
 //! ## Advanced Usage
 //!
-//! If you find the `TaskGraph` macros limiting, you can use the `TaskMaker`; these are the building
-//! blocks for creating all task graphs, including buggy ones. These functions are totally dynamic
-//! in that they deal directly with entities of various archetypes, assuming that the programmer
-//! passed in the correct archetypes for the given function.
+//! If you find the `TaskGraph` macros limiting, you can use the `TaskUser` methods; these are the
+//! building blocks for creating all task graphs, including buggy ones. These functions are totally
+//! dynamic in that they deal directly with entities of various archetypes, assuming that the
+//! programmer passed in the correct archetypes for the given function.
 //!
 //! Potential bugs that won't be detected for you:
 //!   - leaked orphan entities
@@ -182,17 +181,17 @@
 //!
 
 mod components;
+mod data;
 mod graph_builder;
 mod manager;
-mod monitor;
 mod runner;
 
 pub use components::{
-    FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent, TaskMaker, TaskProgress,
+    FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent, TaskProgress,
 };
+pub use data::TaskUser;
 pub use graph_builder::{Cons, TaskFactory, TaskGraph};
-pub use manager::{TaskManager, TaskManagerSystem};
-pub use monitor::TaskMonitor;
+pub use manager::TaskManagerSystem;
 pub use runner::TaskRunnerSystem;
 
 #[cfg(test)]
@@ -274,10 +273,10 @@ mod tests {
         task: T,
         option: MakeSingleTask,
     ) -> Entity {
-        let entity = world.exec(|task_maker: TaskMaker| {
-            let task = task_maker.make_task(task);
+        let entity = world.exec(|user: TaskUser| {
+            let task = user.make_task(task);
             if let MakeSingleTask::Finalize(on_completion) = option {
-                task_maker.finalize(task, on_completion);
+                user.finalize(task, on_completion);
             }
 
             task
@@ -288,7 +287,7 @@ mod tests {
     }
 
     fn entity_is_complete(world: &mut World, entity: Entity) -> bool {
-        world.exec(|monitor: TaskMonitor| monitor.entity_is_complete(entity))
+        world.exec(|user: TaskUser| user.entity_is_complete(entity))
     }
 
     #[test]
@@ -310,7 +309,7 @@ mod tests {
             Some(&AlreadyComplete { was_run: false })
         );
 
-        world.exec(|task_maker: TaskMaker| task_maker.finalize(task, OnCompletion::None));
+        world.exec(|user: TaskUser| user.finalize(task, OnCompletion::None));
         world.maintain();
 
         // Unblock the task.
@@ -351,14 +350,14 @@ mod tests {
     fn joined_tasks_run_in_order_and_deleted_on_completion() {
         let (mut world, mut dispatcher) = set_up();
 
-        let root = world.exec(|task_maker: TaskMaker| {
+        let root = world.exec(|user: TaskUser| {
             let task_graph: TaskGraph = seq!(
                 @WriteValue { value: 1 },
                 @WriteValue { value: 2 },
                 @WriteValue { value: 3 }
             );
 
-            task_graph.assemble(OnCompletion::Delete, &task_maker)
+            task_graph.assemble(OnCompletion::Delete, &user)
         });
         world.maintain();
 
@@ -382,7 +381,7 @@ mod tests {
         //       /               \
         //     t2 ----> t1.2 -----> t0
 
-        let root = world.exec(|task_maker: TaskMaker| {
+        let root = world.exec(|user: TaskUser| {
             let task_graph: TaskGraph = seq!(
                 @WriteValue { value: 1 },
                 fork!(
@@ -392,7 +391,7 @@ mod tests {
                 @WriteValue { value: 4 }
             );
 
-            task_graph.assemble(OnCompletion::Delete, &task_maker)
+            task_graph.assemble(OnCompletion::Delete, &user)
         });
         world.maintain();
 

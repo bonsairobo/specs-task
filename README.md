@@ -8,7 +8,7 @@ tasks as entities and declare explicit temporal dependencies between them.
 ### Making task graphs
 
 ```rust
-fn make_static_task_graph(task_maker: &TaskMaker) {
+fn make_static_task_graph(user: &TaskUser) {
     // Any component that implements TaskComponent can be spawned.
     let task_graph: TaskGraph = seq!(
         @TaskFoo("hello"),
@@ -19,10 +19,10 @@ fn make_static_task_graph(task_maker: &TaskMaker) {
         ),
         @TaskZing("goodbye")
     );
-    task_graph.assemble(task_maker, OnCompletion::Delete);
+    task_graph.assemble(user, OnCompletion::Delete);
 }
 
-fn make_dynamic_task_graph(task_maker: &TaskMaker) {
+fn make_dynamic_task_graph(user: &TaskUser) {
     let first = task!(@TaskFoo("hello"));
     let mut middle = empty_graph!();
     for i in 0..10 {
@@ -30,7 +30,7 @@ fn make_dynamic_task_graph(task_maker: &TaskMaker) {
     }
     let last = task!(@TaskZing("goodbye"));
     let task_graph: TaskGraph = seq!(first, middle, last);
-    task_graph.assemble(task_maker, OnCompletion::Delete);
+    task_graph.assemble(user, OnCompletion::Delete);
 }
 ```
 

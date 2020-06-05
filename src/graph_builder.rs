@@ -1,16 +1,16 @@
-use crate::components::*;
+use crate::{components::*, data::TaskUser};
 
 use specs::prelude::*;
 
 /// Implemented by all nodes of a `TaskGraph`. Has a blanket impl that should work for most
 /// `TaskComponent`s.
 pub trait TaskFactory {
-    fn create_task(&self, task_maker: &TaskMaker) -> Entity;
+    fn create_task(&self, user: &TaskUser) -> Entity;
 }
 
 impl<'a, T: 'static + Clone + TaskComponent<'a> + Send + Sync> TaskFactory for T {
-    fn create_task(&self, task_maker: &TaskMaker) -> Entity {
-        task_maker.make_task(self.clone())
+    fn create_task(&self, user: &TaskUser) -> Entity {
+        user.make_task(self.clone())
     }
 }
 
@@ -56,12 +56,12 @@ impl<T> Cons<T> {
 pub type TaskGraph = Cons<Box<dyn TaskFactory + Send + Sync>>;
 
 impl Cons<Box<dyn TaskFactory + Send + Sync>> {
-    fn _assemble(self, fork: Option<Entity>, task_maker: &TaskMaker) -> (Entity, Entity) {
+    fn _assemble(self, fork: Option<Entity>, user: &TaskUser) -> (Entity, Entity) {
         match self {
             Cons::Seq(head, tail) => {
-                let (head_first_entity, head_last_entity) = head._assemble(None, task_maker);
-                let (tail_first_entity, tail_last_entity) = tail._assemble(None, task_maker);
-                task_maker.join(tail_first_entity, head_last_entity);
+                let (head_first_entity, head_last_entity) = head._assemble(None, user);
+                let (tail_first_entity, tail_last_entity) = tail._assemble(None, user);
+                user.join(tail_first_entity, head_last_entity);
 
                 (head_first_entity, tail_last_entity)
             }
@@ -69,26 +69,26 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
                 let fork_entity = if let Some(e) = fork {
                     e
                 } else {
-                    task_maker.make_fork()
+                    user.make_fork()
                 };
 
-                let (_, head_last_entity) = head._assemble(Some(fork_entity), task_maker);
-                let (_, tail_last_entity) = tail._assemble(Some(fork_entity), task_maker);
+                let (_, head_last_entity) = head._assemble(Some(fork_entity), user);
+                let (_, tail_last_entity) = tail._assemble(Some(fork_entity), user);
 
                 // Any decendents reachable only via Cons::Fork are considered prongs. If a
                 // descendent is a Cons::Seq, then the prong only connects at the "last" entity of
                 // the sequence.
                 if head_last_entity != fork_entity {
-                    task_maker.add_prong(fork_entity, head_last_entity);
+                    user.add_prong(fork_entity, head_last_entity);
                 }
                 if tail_last_entity != fork_entity {
-                    task_maker.add_prong(fork_entity, tail_last_entity);
+                    user.add_prong(fork_entity, tail_last_entity);
                 }
 
                 (fork_entity, fork_entity)
             }
             Cons::Task(task) => {
-                let task_entity = task.create_task(task_maker);
+                let task_entity = task.create_task(user);
 
                 (task_entity, task_entity)
             }
@@ -98,14 +98,14 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
 
     /// Mark the root of the `TaskGraph` as final, effectively unblocking the first tasks in this
     /// graph to be run. Panics if `self` contains no tasks.
-    pub fn assemble(self, on_completion: OnCompletion, task_maker: &TaskMaker) -> Option<Entity> {
+    pub fn assemble(self, on_completion: OnCompletion, user: &TaskUser) -> Option<Entity> {
         let s = self.remove_nil();
         if let Cons::Nil = s {
             return None;
         }
 
-        let (_first_entity, last_entity) = s._assemble(None, task_maker);
-        task_maker.finalize(last_entity, on_completion);
+        let (_first_entity, last_entity) = s._assemble(None, user);
+        user.finalize(last_entity, on_completion);
 
         Some(last_entity)
     }

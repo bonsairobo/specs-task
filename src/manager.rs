@@ -1,4 +1,7 @@
-use crate::components::{FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskProgress};
+use crate::{
+    components::{FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskProgress},
+    monitor::entity_is_complete,
+};
 
 use log::debug;
 use specs::prelude::*;
@@ -13,45 +16,6 @@ pub struct TaskManager<'a> {
 }
 
 impl TaskManager<'_> {
-    /// Returns true iff the task was seen as complete on the last run of the `TaskManagerSystem`.
-    pub fn task_is_complete(&self, entity: Entity) -> bool {
-        if let Some(progress) = self.progress.get(entity) {
-            progress.is_complete()
-        } else {
-            // Task entity may not have a TaskProgress component yet if it's constructed lazily.
-            false
-        }
-    }
-
-    /// Returns true iff all of `entity`'s children are complete.
-    fn fork_is_complete(&self, multi_children: &[Entity]) -> bool {
-        // We know that a fork's SingleEdge child is complete if any of the MultiEdge children are
-        // complete.
-        for child in multi_children.iter() {
-            if !self.entity_is_complete(*child) {
-                return false;
-            }
-        }
-
-        true
-    }
-
-    /// Tells you whether a fork or a task entity is complete.
-    pub fn entity_is_complete(&self, entity: Entity) -> bool {
-        // Only fork entities can have `MultiEdge`s. If the entity is being created lazily, we won't
-        // know if it's a fork or task, but we won't consider it complete regardless.
-        if let Some(MultiEdge { children }) = self.multi_edges.get(entity) {
-            self.fork_is_complete(&children)
-        } else {
-            self.task_is_complete(entity)
-        }
-    }
-
-    /// Returns the number of tasks that haven't yet completed.
-    pub fn count_tasks_in_progress(&self) -> usize {
-        (&self.progress).join().count()
-    }
-
     /// Deletes only the descendent entities of `entity`, but leaves `entity` alive.
     pub fn delete_descendents(&self, entity: Entity) {
         if let Some(MultiEdge { children }) = self.multi_edges.get(entity) {
@@ -80,7 +44,7 @@ impl TaskManager<'_> {
     /// Deletes the entity and descendents if they are all complete. Returns true iff the entity and
     /// all descendents are complete.
     pub fn delete_if_complete(&self, entity: Entity) -> bool {
-        if self.entity_is_complete(entity) {
+        if entity_is_complete(&self.progress, &self.multi_edges, entity) {
             self.delete_entity_and_descendents(entity);
 
             true

@@ -184,6 +184,7 @@
 mod components;
 mod graph_builder;
 mod manager;
+mod monitor;
 mod runner;
 
 pub use components::{
@@ -191,6 +192,7 @@ pub use components::{
 };
 pub use graph_builder::{Cons, TaskFactory, TaskGraph};
 pub use manager::{TaskManager, TaskManagerSystem};
+pub use monitor::TaskMonitor;
 pub use runner::TaskRunnerSystem;
 
 #[cfg(test)]
@@ -286,7 +288,7 @@ mod tests {
     }
 
     fn entity_is_complete(world: &mut World, entity: Entity) -> bool {
-        world.exec(|task_man: TaskManager| task_man.entity_is_complete(entity))
+        world.exec(|monitor: TaskMonitor| monitor.entity_is_complete(entity))
     }
 
     #[test]

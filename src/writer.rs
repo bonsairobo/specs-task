@@ -114,6 +114,12 @@ impl<'a, T: 'static + Clone + TaskComponent<'a> + Send + Sync> TaskFactory for T
     }
 }
 
+impl TaskFactory for Entity {
+    fn create_task(&self, _user: &TaskUser) -> Entity {
+        self.clone()
+    }
+}
+
 // PERF: Cons requires a lot of heap allocations, but this choice was made to avoid using recursive
 // types which prevent assigning different graphs to a single variable (e.g. accumulating a graph in
 // a loop).

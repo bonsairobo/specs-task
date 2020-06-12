@@ -1,18 +1,22 @@
-use crate::{components::*, builder::TaskBuilder};
+use crate::{components::*, writer::TaskWriter, TaskData};
 
-use specs::{prelude::*, world::LazyBuilder};
+use specs::{prelude::*, storage::GenericReadStorage, world::LazyBuilder};
 
 /// `SystemData` for all read-only task-related operations. Can create and modify tasks lazily.
-#[derive(SystemData)]
-pub struct TaskUser<'a> {
-    pub(crate) entities: Entities<'a>,
-    lazy: Read<'a, LazyUpdate>,
-    progress: ReadStorage<'a, TaskProgress>,
-    single_edges: ReadStorage<'a, SingleEdge>,
-    multi_edges: ReadStorage<'a, MultiEdge>,
-}
+pub type TaskUser<'a> = TaskData<'a,
+    ReadStorage<'a, TaskProgress>,
+    ReadStorage<'a, SingleEdge>,
+    ReadStorage<'a, MultiEdge>,
+    (),
+>;
 
-impl<'a> TaskUser<'a> {
+impl<'a, P, S, M, F> TaskData<'a, P, S, M, F>
+where
+    P: GenericReadStorage<Component=TaskProgress>,
+    S: GenericReadStorage<Component=SingleEdge>,
+    M: GenericReadStorage<Component=MultiEdge>,
+    &'a P: 'a + Join,
+{
     /// Like `make_task`, but use `entity` for tracking the task components. This can make it easier
     /// to manage tasks coupled with a specific entity (rather than storing a separate task entity
     /// in a component).
@@ -20,7 +24,7 @@ impl<'a> TaskUser<'a> {
         &self, entity: Entity, task: T
     ) {
         self.lazy.exec(move |world| {
-            world.exec(move |(mut builder, mut task_storage): (TaskBuilder, WriteStorage<T>)| {
+            world.exec(move |(mut builder, mut task_storage): (TaskWriter, WriteStorage<T>)| {
                 builder.make_task_with_entity(entity, task, &mut task_storage);
             })
         })
@@ -59,7 +63,7 @@ impl<'a> TaskUser<'a> {
     /// Add `prong` as a child on the `MultiEdge` of `fork_entity`.
     pub fn add_prong_lazy(&self, fork_entity: Entity, prong: Entity) {
         self.lazy.exec(move |world| {
-            world.exec(move |mut builder: TaskBuilder| {
+            world.exec(move |mut builder: TaskWriter| {
                 builder.add_prong(fork_entity, prong);
             })
         });
@@ -68,7 +72,7 @@ impl<'a> TaskUser<'a> {
     /// Creates a `SingleEdge` from `parent` to `child`. Creates a fork-join if `parent` is a fork.
     pub fn join_lazy(&self, parent: Entity, child: Entity) {
         self.lazy.exec(move |world| {
-            world.exec(move |mut builder: TaskBuilder| {
+            world.exec(move |mut builder: TaskWriter| {
                 builder.join(parent, child);
             })
         });

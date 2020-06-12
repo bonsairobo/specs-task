@@ -181,24 +181,34 @@
 //!
 
 mod components;
-mod builder;
 mod manager;
 mod runner;
 mod user;
+mod writer;
 
 pub use components::{
     FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent, TaskProgress,
 };
 pub use user::TaskUser;
-pub use builder::{Cons, TaskBuilder, TaskFactory, TaskGraph};
 pub use manager::TaskManagerSystem;
 pub use runner::TaskRunnerSystem;
+pub use writer::{Cons, TaskWriter, TaskFactory, TaskGraph};
+
+use specs::prelude::*;
+
+#[derive(SystemData)]
+pub struct TaskData<'a, P, S, M, F> {
+    entities: Entities<'a>,
+    lazy: Read<'a, LazyUpdate>,
+    progress: P,
+    single_edges: S,
+    multi_edges: M,
+    final_tags: F,
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use specs::prelude::*;
 
     #[derive(Clone, Debug, Default, Eq, PartialEq)]
     struct AlreadyComplete {

@@ -1,19 +1,17 @@
-use crate::{components::*, user::TaskUser};
+use crate::{components::*, user::TaskUser, TaskData};
 
 use specs::prelude::*;
 
 /// Creates and modifies task graph entities. Effects are immediate, not lazy like `TaskUser`, so
 /// this requires using `WriteStorage` for task graph components.
-#[derive(SystemData)]
-pub struct TaskBuilder<'a> {
-    entities: Entities<'a>,
-    progress: WriteStorage<'a, TaskProgress>,
-    single_edges: WriteStorage<'a, SingleEdge>,
-    multi_edges: WriteStorage<'a, MultiEdge>,
-    final_tags: WriteStorage<'a, FinalTag>,
-}
+pub type TaskWriter<'a> = TaskData<'a,
+    WriteStorage<'a, TaskProgress>,
+    WriteStorage<'a, SingleEdge>,
+    WriteStorage<'a, MultiEdge>,
+    WriteStorage<'a, FinalTag>,
+>;
 
-impl<'a> TaskBuilder<'a> {
+impl<'a> TaskWriter<'a> {
     /// Like `make_task`, but use `entity` for tracking the task components.
     pub fn make_task_with_entity<'b, T: TaskComponent<'b> + Send + Sync>(
         &mut self, entity: Entity, task: T, task_storage: &mut WriteStorage<T>,

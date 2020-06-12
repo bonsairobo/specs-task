@@ -190,7 +190,7 @@ pub use components::{
     FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent, TaskProgress,
 };
 pub use user::TaskUser;
-pub use graph_builder::{Cons, TaskFactory, TaskGraph};
+pub use graph_builder::{Cons, TaskBuilder, TaskFactory, TaskGraph};
 pub use manager::TaskManagerSystem;
 pub use runner::TaskRunnerSystem;
 
@@ -274,9 +274,9 @@ mod tests {
         option: MakeSingleTask,
     ) -> Entity {
         let entity = world.exec(|user: TaskUser| {
-            let task = user.make_task(task);
+            let task = user.make_task_lazy(task);
             if let MakeSingleTask::Finalize(on_completion) = option {
-                user.finalize(task, on_completion);
+                user.finalize_lazy(task, on_completion);
             }
 
             task
@@ -309,7 +309,7 @@ mod tests {
             Some(&AlreadyComplete { was_run: false })
         );
 
-        world.exec(|user: TaskUser| user.finalize(task, OnCompletion::None));
+        world.exec(|user: TaskUser| user.finalize_lazy(task, OnCompletion::None));
         world.maintain();
 
         // Unblock the task.

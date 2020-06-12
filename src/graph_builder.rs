@@ -2,6 +2,108 @@ use crate::{components::*, user::TaskUser};
 
 use specs::prelude::*;
 
+/// Creates and modifies task graph entities. Effects are immediate, not lazy like `TaskUser`, so
+/// this requires using `WriteStorage` for task graph components.
+#[derive(SystemData)]
+pub struct TaskBuilder<'a> {
+    entities: Entities<'a>,
+    progress: WriteStorage<'a, TaskProgress>,
+    single_edges: WriteStorage<'a, SingleEdge>,
+    multi_edges: WriteStorage<'a, MultiEdge>,
+    final_tags: WriteStorage<'a, FinalTag>,
+}
+
+impl<'a> TaskBuilder<'a> {
+    /// Like `make_task`, but use `entity` for tracking the task components.
+    pub fn make_task_with_entity<'b, T: TaskComponent<'b> + Send + Sync>(
+        &mut self, entity: Entity, task: T, task_storage: &mut WriteStorage<T>,
+    ) {
+        task_storage.insert(entity, task).unwrap();
+        self.progress.insert(entity, TaskProgress::default()).unwrap();
+        log::debug!("Created task {:?}", entity);
+    }
+
+    /// Create a new task entity with the given `TaskComponent`. The task will not make progress
+    /// until it is either finalized or the descendent of a finalized entity.
+    pub fn make_task<'b, T: TaskComponent<'b> + Send + Sync>(
+        &mut self, task: T, task_storage: &mut WriteStorage<T>
+    ) -> Entity {
+        let entity = self.entities.create();
+        self.make_task_with_entity(entity, task, task_storage);
+        log::debug!("Created task {:?}", entity);
+
+        entity
+    }
+
+    /// Same as `make_task_with_entity`, but also finalizes the task.
+    pub fn make_final_task_with_entity<'b, T: TaskComponent<'b> + Send + Sync>(
+        &mut self,
+        entity: Entity,
+        task: T,
+        on_completion: OnCompletion,
+        task_storage: &mut WriteStorage<T>,
+    ) -> Entity {
+        self.make_task_with_entity(entity, task, task_storage);
+        self.finalize(entity, on_completion);
+
+        entity
+    }
+
+    /// Same as `make_task`, but also finalizes the task.
+    pub fn make_final_task<'b, T: TaskComponent<'b> + Send + Sync>(
+        &mut self,
+        task: T,
+        on_completion: OnCompletion,
+        task_storage: &mut WriteStorage<T>,
+    ) -> Entity {
+        let task_entity = self.make_task(task, task_storage);
+        self.finalize(task_entity, on_completion);
+
+        task_entity
+    }
+
+    /// Create a new fork entity with no children.
+    pub fn make_fork(&mut self) -> Entity {
+        let entity = self.entities.create();
+        self.multi_edges.insert(entity, MultiEdge::default()).unwrap();
+        log::debug!("Created fork {:?}", entity);
+
+        entity
+    }
+
+    /// Add `prong` as a child on the `MultiEdge` of `fork_entity`.
+    pub fn add_prong(&mut self, fork_entity: Entity, prong: Entity) {
+        let multi_edge = self.multi_edges.get_mut(fork_entity).unwrap_or_else(|| {
+            panic!(
+                "Tried to add prong {:?} to non-fork entity {:?}",
+                prong, fork_entity
+            )
+        });
+        multi_edge.add_child(prong);
+    }
+
+    /// Creates a `SingleEdge` from `parent` to `child`. Creates a fork-join if `parent` is a fork.
+    pub fn join(&mut self, parent: Entity, child: Entity) {
+        if let Some(edge) = self.single_edges.get_mut(parent) {
+            panic!(
+                "Attempted to make task {:?} child of {:?}, but task {:?} already has child {:?}",
+                child, parent, parent, edge.child
+            );
+        } else {
+            self.single_edges.insert(parent, SingleEdge { child }).unwrap();
+        }
+    }
+
+    /// Mark `entity` as final. This will make all of `entity`'s descendents visible to the
+    /// `TaskManagerSystem`, allowing them to make progress. If `OnCompletion::Delete`, then
+    /// `entity` and all of its descendents will be deleted when `entity` is complete (and hence the
+    /// entire graph is complete). Otherwise, you need to clean up the entities your self by calling
+    /// `delete_entity_and_descendents`. God help you if you leak an orphaned entity.
+    pub fn finalize(&mut self, entity: Entity, on_completion: OnCompletion) {
+        self.final_tags.insert(entity, FinalTag { on_completion }).unwrap();
+    }
+}
+
 /// Implemented by all nodes of a `TaskGraph`. Has a blanket impl that should work for most
 /// `TaskComponent`s.
 pub trait TaskFactory {
@@ -10,7 +112,7 @@ pub trait TaskFactory {
 
 impl<'a, T: 'static + Clone + TaskComponent<'a> + Send + Sync> TaskFactory for T {
     fn create_task(&self, user: &TaskUser) -> Entity {
-        user.make_task(self.clone())
+        user.make_task_lazy(self.clone())
     }
 }
 
@@ -61,7 +163,7 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
             Cons::Seq(head, tail) => {
                 let (head_first_entity, head_last_entity) = head._assemble(None, user);
                 let (tail_first_entity, tail_last_entity) = tail._assemble(None, user);
-                user.join(tail_first_entity, head_last_entity);
+                user.join_lazy(tail_first_entity, head_last_entity);
 
                 (head_first_entity, tail_last_entity)
             }
@@ -69,7 +171,7 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
                 let fork_entity = if let Some(e) = fork {
                     e
                 } else {
-                    user.make_fork()
+                    user.make_fork_lazy()
                 };
 
                 let (_, head_last_entity) = head._assemble(Some(fork_entity), user);
@@ -79,10 +181,10 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
                 // descendent is a Cons::Seq, then the prong only connects at the "last" entity of
                 // the sequence.
                 if head_last_entity != fork_entity {
-                    user.add_prong(fork_entity, head_last_entity);
+                    user.add_prong_lazy(fork_entity, head_last_entity);
                 }
                 if tail_last_entity != fork_entity {
-                    user.add_prong(fork_entity, tail_last_entity);
+                    user.add_prong_lazy(fork_entity, tail_last_entity);
                 }
 
                 (fork_entity, fork_entity)
@@ -96,8 +198,8 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
         }
     }
 
-    /// Mark the root of the `TaskGraph` as final, effectively unblocking the first tasks in this
-    /// graph to be run. Panics if `self` contains no tasks.
+    /// Lazily create all of the task graph entities and connect them with edges. Tasks won't exist
+    /// until calling `World::maintain`.
     pub fn assemble(self, on_completion: OnCompletion, user: &TaskUser) -> Option<Entity> {
         let s = self.remove_nil();
         if let Cons::Nil = s {
@@ -105,7 +207,7 @@ impl Cons<Box<dyn TaskFactory + Send + Sync>> {
         }
 
         let (_first_entity, last_entity) = s._assemble(None, user);
-        user.finalize(last_entity, on_completion);
+        user.finalize_lazy(last_entity, on_completion);
 
         Some(last_entity)
     }

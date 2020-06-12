@@ -181,6 +181,7 @@
 //!
 
 mod components;
+mod cons;
 mod manager;
 mod runner;
 mod user;
@@ -189,10 +190,11 @@ mod writer;
 pub use components::{
     FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent, TaskProgress,
 };
+pub use cons::{Cons, TaskFactory, TaskGraph};
 pub use user::TaskUser;
 pub use manager::TaskManagerSystem;
 pub use runner::TaskRunnerSystem;
-pub use writer::{Cons, TaskWriter, TaskFactory, TaskGraph};
+pub use writer::TaskWriter;
 
 use specs::prelude::*;
 

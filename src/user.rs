@@ -35,6 +35,15 @@ impl<'a> TaskUser<'a> {
         entity
     }
 
+    pub fn make_final_task_lazy<'b, T: TaskComponent<'b> + Send + Sync>(
+        &self, task: T, on_completion: OnCompletion,
+    ) -> Entity {
+        let entity = self.make_task_lazy(task);
+        self.finalize_lazy(entity, on_completion);
+
+        entity
+    }
+
     /// Create a new fork entity with no children.
     pub fn make_fork_lazy(&self) -> Entity {
         let entity = self

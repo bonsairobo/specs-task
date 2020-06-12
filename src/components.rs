@@ -74,7 +74,6 @@ impl Component for MultiEdge {
 pub enum OnCompletion {
     None,
     Delete,
-    DeleteDescendents,
 }
 
 impl Default for OnCompletion {

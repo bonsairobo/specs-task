@@ -106,9 +106,6 @@ impl<'a> System<'a> for TaskManagerSystem {
                     OnCompletion::Delete => {
                         task_man.delete_entity_and_descendents(entity);
                     }
-                    OnCompletion::DeleteDescendents => {
-                        task_man.delete_descendents(entity);
-                    }
                     OnCompletion::None => {
                         debug!("Removing FinalTag from {:?}", entity);
                         finalized.remove(entity);

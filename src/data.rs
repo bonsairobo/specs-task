@@ -172,7 +172,7 @@ where
     }
 
     /// Deletes only the descendent entities of `entity`, but leaves `entity` alive.
-    pub fn delete_descendents(&self, entity: Entity) {
+    fn delete_descendents(&self, entity: Entity) {
         if let Some(MultiEdge { children }) = self.multi_edges.get(entity) {
             for child in children.iter() {
                 self.delete_entity_and_descendents(*child);

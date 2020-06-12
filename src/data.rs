@@ -124,12 +124,12 @@ where
     /// entire graph is complete). Otherwise, you need to clean up the entities your self by calling
     /// `delete_entity_and_descendents`. God help you if you leak an orphaned entity.
     pub fn finalize(&self, entity: Entity, on_completion: OnCompletion) {
-        self.lazy.exec_mut(move |world| {
-            let mut finalized = world.write_component::<FinalTag>();
-            finalized
-                .insert(entity, FinalTag { on_completion })
-                .unwrap();
-        });
+        LazyBuilder {
+            entity,
+            lazy: &self.lazy,
+        }
+        .with(FinalTag { on_completion })
+        .build();
     }
 
     /// Returns true iff the task was seen as complete on the last run of the `TaskManagerSystem`.

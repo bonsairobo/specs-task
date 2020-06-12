@@ -19,8 +19,8 @@ pub trait TaskComponent<'a>: Component {
 #[doc(hidden)]
 #[derive(Default)]
 pub struct TaskProgress {
-    pub(crate) is_complete: AtomicBool,
-    pub(crate) is_unblocked: bool,
+    is_complete: AtomicBool,
+    is_unblocked: AtomicBool,
 }
 
 impl Component for TaskProgress {
@@ -36,8 +36,12 @@ impl TaskProgress {
         self.is_complete.store(true, Ordering::Relaxed);
     }
 
-    pub(crate) fn unblock(&mut self) {
-        self.is_unblocked = true;
+    pub(crate) fn is_unblocked(&self) -> bool {
+        self.is_unblocked.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn unblock(&self) {
+        self.is_unblocked.store(true, Ordering::Relaxed);
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{components::*, data::TaskUser};
+use crate::{components::*, user::TaskUser};
 
 use specs::prelude::*;
 

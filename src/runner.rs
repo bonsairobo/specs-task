@@ -28,7 +28,7 @@ where
 
     fn run(&mut self, (progress, mut tasks, mut task_data): Self::SystemData) {
         for (task_progress, task) in (&progress, &mut tasks).join() {
-            if !task_progress.is_unblocked || task_progress.is_complete() {
+            if !task_progress.is_unblocked() || task_progress.is_complete() {
                 continue;
             }
             let is_complete = task.run(&mut task_data);

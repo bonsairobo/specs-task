@@ -1,27 +1,18 @@
 use crate::components::*;
 
-use specs::{prelude::*, storage::GenericReadStorage, world::LazyBuilder};
+use specs::{prelude::*, world::LazyBuilder};
 
-/// `SystemData` for all task-related operations. Generic over the type of `TaskProgress` storage
-/// so that it can be used in multiple contexts.
+/// `SystemData` for all task-related operations.
 #[derive(SystemData)]
-pub struct TaskData<'a, P> {
+pub struct TaskUser<'a> {
     lazy: Read<'a, LazyUpdate>,
     pub(crate) entities: Entities<'a>,
-    pub(crate) progress: P,
+    pub(crate) progress: ReadStorage<'a, TaskProgress>,
     pub(crate) single_edges: ReadStorage<'a, SingleEdge>,
     pub(crate) multi_edges: ReadStorage<'a, MultiEdge>,
 }
 
-/// `SystemData` for creating, polling, and deleting graphs of task entities. Only has read access
-/// to task components and does all creation/deletion lazily.
-pub type TaskUser<'a> = TaskData<'a, ReadStorage<'a, TaskProgress>>;
-
-impl<'a, P> TaskData<'a, P>
-where
-    P: 'a + GenericReadStorage<Component=TaskProgress>,
-    &'a P: Join,
-{
+impl<'a> TaskUser<'a> {
     /// Like `make_task`, but use `entity` for tracking the task components. This can make it easier
     /// to manage tasks coupled with a specific entity (rather than storing a separate task entity
     /// in a component).
@@ -205,6 +196,78 @@ where
             true
         } else {
             false
+        }
+    }
+
+    /// Returns `true` iff `entity` is complete.
+    fn maintain_task_and_descendents(&self, entity: Entity) -> bool {
+        let (is_unblocked, is_complete) = if let Some(progress) = self.progress.get(entity) {
+            (progress.is_unblocked(), progress.is_complete())
+        } else {
+            // Missing progress means the task is complete and progress was already removed.
+            return true;
+        };
+
+        if is_complete {
+            log::debug!(
+                "Noticed task {:?} is complete, removing TaskProgress",
+                entity
+            );
+            return true;
+        }
+
+        // If `is_unblocked`, the children don't need maintenance, because we already verified they
+        // are all complete.
+        if is_unblocked {
+            return false;
+        }
+
+        // Unblock the task if its child is complete.
+        let mut child_complete = true;
+        if let Some(SingleEdge { child }) = self.single_edges.get(entity).cloned() {
+            child_complete = self.maintain_entity_and_descendents(child);
+        }
+        if child_complete {
+            log::debug!("Unblocking task {:?}", entity);
+            let progress = self
+                .progress
+                .get(entity)
+                .expect("Blocked task must have progress");
+            progress.unblock();
+        }
+
+        false
+    }
+
+    /// Returns `true` iff `entity` is complete.
+    fn maintain_fork_and_descendents(
+        &self,
+        entity: Entity,
+        multi_edge_children: &[Entity],
+    ) -> bool {
+        // We make sure that the SingleEdge child completes before any of the MultiEdge descendents
+        // can start.
+        let mut single_child_complete = true;
+        if let Some(SingleEdge { child }) = self.single_edges.get(entity).cloned() {
+            single_child_complete = self.maintain_entity_and_descendents(child);
+        }
+        let mut multi_children_complete = true;
+        if single_child_complete {
+            for child in multi_edge_children.iter() {
+                multi_children_complete &= self.maintain_entity_and_descendents(*child);
+            }
+        }
+
+        single_child_complete && multi_children_complete
+    }
+
+    /// Returns `true` iff `entity` is complete.
+    pub(crate) fn maintain_entity_and_descendents(&self, entity: Entity) -> bool {
+        // Only fork entities can have `MultiEdge`s, and they always do.
+        if let Some(MultiEdge { children }) = self.multi_edges.get(entity).cloned() {
+            self.maintain_fork_and_descendents(entity, &children)
+        } else {
+            self.maintain_task_and_descendents(entity)
         }
     }
 }

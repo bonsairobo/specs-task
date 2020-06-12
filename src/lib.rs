@@ -181,7 +181,7 @@
 //!
 
 mod components;
-mod graph_builder;
+mod builder;
 mod manager;
 mod runner;
 mod user;
@@ -190,7 +190,7 @@ pub use components::{
     FinalTag, MultiEdge, OnCompletion, SingleEdge, TaskComponent, TaskProgress,
 };
 pub use user::TaskUser;
-pub use graph_builder::{Cons, TaskBuilder, TaskFactory, TaskGraph};
+pub use builder::{Cons, TaskBuilder, TaskFactory, TaskGraph};
 pub use manager::TaskManagerSystem;
 pub use runner::TaskRunnerSystem;
 

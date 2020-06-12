@@ -1,4 +1,4 @@
-use crate::{components::*, graph_builder::TaskBuilder};
+use crate::{components::*, builder::TaskBuilder};
 
 use specs::{prelude::*, world::LazyBuilder};
 

@@ -59,9 +59,9 @@ impl<T> Cons<T> {
 /// A node of the binary tree grammar that describes a task graph. `Cons::Seq` lists represent
 /// sequential execution of tasks. `Cons::Fork` lists represent concurrent execution of tasks. The
 /// leaves of the tree are `Cons::Task`s.
-pub type TaskGraph = Cons<Box<dyn TaskFactory + Send + Sync>>;
+pub type TaskGraph = Cons<Box<dyn TaskFactory>>;
 
-impl Cons<Box<dyn TaskFactory + Send + Sync>> {
+impl TaskGraph {
     fn _assemble(self, fork: Option<Entity>, user: &TaskUser) -> (Entity, Entity) {
         match self {
             Cons::Seq(head, tail) => {

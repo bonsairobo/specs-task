@@ -111,7 +111,8 @@
 //! that the children on the `MultiEdge` are called "prongs" of the fork.
 //!
 //!```
-//! r#"      single          single          single t0 <-------- F1 <-------------- F2 <-------- t3
+//! r#"      single          single          single
+//!     t0 <-------- F1 <-------------- F2 <-------- t3
 //!                   |                  |
 //!          t1.1 <---|          t2.1 <--|
 //!          t1.2 <---| multi    t2.2 <--| multi

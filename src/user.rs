@@ -24,8 +24,8 @@ where
         &self, entity: Entity, task: T
     ) {
         self.lazy.exec(move |world| {
-            world.exec(move |(mut builder, mut task_storage): (TaskWriter, WriteStorage<T>)| {
-                builder.make_task_with_entity(entity, task, &mut task_storage);
+            world.exec(move |(mut writer, mut task_storage): (TaskWriter, WriteStorage<T>)| {
+                writer.make_task_with_entity(entity, task, &mut task_storage);
             })
         })
     }
@@ -63,8 +63,8 @@ where
     /// Add `prong` as a child on the `MultiEdge` of `fork_entity`.
     pub fn add_prong_lazy(&self, fork_entity: Entity, prong: Entity) {
         self.lazy.exec(move |world| {
-            world.exec(move |mut builder: TaskWriter| {
-                builder.add_prong(fork_entity, prong);
+            world.exec(move |mut writer: TaskWriter| {
+                writer.add_prong(fork_entity, prong);
             })
         });
     }
@@ -72,8 +72,8 @@ where
     /// Creates a `SingleEdge` from `parent` to `child`. Creates a fork-join if `parent` is a fork.
     pub fn join_lazy(&self, parent: Entity, child: Entity) {
         self.lazy.exec(move |world| {
-            world.exec(move |mut builder: TaskWriter| {
-                builder.join(parent, child);
+            world.exec(move |mut writer: TaskWriter| {
+                writer.join(parent, child);
             })
         });
     }
